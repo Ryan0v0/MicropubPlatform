@@ -14,7 +14,7 @@ def test_email():
     from app.utils.email import send_email
     send_email('[Madblog] Test Email',
                sender=current_app.config['MAIL_SENDER'],
-               recipients=['wangyong.sz@nikoyo.com.cn'],
+               recipients=['zhaowrenee@gmail.com'],
                text_body='text body',
                html_body='<h1>HTML body</h1>')
     return jsonify('Send Email OK!')
