@@ -14,17 +14,17 @@ def create_comment():
     '''在某篇博客微知识下面发表新评论'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request('You must micropub JSON data.')
     if 'body' not in data or not data.get('body').strip():
         return bad_request('Body is required.')
     if 'post_id' not in data or not data.get('post_id'):
         return bad_request('Post id is required.')
 
-    post = Post.query.get_or_404(int(data.get('post_id')))
+    micropub = Post.query.get_or_404(int(data.get('post_id')))
     comment = Comment()
     comment.from_dict(data)
     comment.author = g.current_user
-    comment.post = post
+    comment.micropub = micropub
     # 必须先添加该评论，后续给各用户发送通知时，User.new_recived_comments() 才能是更新后的值
     db.session.add(comment)
     db.session.commit()  # 更新数据库，添加评论记录
@@ -32,7 +32,7 @@ def create_comment():
     # 1. 如果是一级评论，只需要给微知识作者发送新评论通知
     # 2. 如果不是一级评论，则需要给微知识作者和该评论的所有祖先的作者发送新评论通知
     users = set()
-    users.add(comment.post.author)  # 将微知识作者添加进集合中
+    users.add(comment.micropub.author)  # 将微知识作者添加进集合中
     if comment.parent:
         ancestors_authors = {c.author for c in comment.get_ancestors()}
         users = users | ancestors_authors
@@ -75,11 +75,11 @@ def get_comment(id):
 def update_comment(id):
     '''修改单个评论'''
     comment = Comment.query.get_or_404(id)
-    if g.current_user != comment.author and g.current_user != comment.post.author and not g.current_user.can(Permission.ADMIN):
+    if g.current_user != comment.author and g.current_user != comment.micropub.author and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request('You must micropub JSON data.')
     # if 'body' not in data or not data.get('body'):
     #     return bad_request('Body is required.')
     comment.from_dict(data)
@@ -92,13 +92,13 @@ def update_comment(id):
 def delete_comment(id):
     '''删除单个评论'''
     comment = Comment.query.get_or_404(id)
-    if g.current_user != comment.author and g.current_user != comment.post.author and not g.current_user.can(Permission.ADMIN):
+    if g.current_user != comment.author and g.current_user != comment.micropub.author and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
     # 删除评论时:
     # 1. 如果是一级评论，只需要给微知识作者发送新评论通知
     # 2. 如果不是一级评论，则需要给微知识作者和该评论的所有祖先的作者发送新评论通知
     users = set()
-    users.add(comment.post.author)  # 将微知识作者添加进集合中
+    users.add(comment.micropub.author)  # 将微知识作者添加进集合中
     if comment.parent:
         ancestors_authors = {c.author for c in comment.get_ancestors()}
         users = users | ancestors_authors

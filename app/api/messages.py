@@ -13,7 +13,7 @@ def create_message():
     '''给其它用户发送私信'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request('You must micropub JSON data.')
     if 'body' not in data or not data.get('body'):
         return bad_request('Body is required.')
     if 'recipient_id' not in data or not data.get('recipient_id'):
@@ -72,7 +72,7 @@ def update_message(id):
         return error_response(403)
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request('You must micropub JSON data.')
     if 'body' not in data or not data.get('body'):
         return bad_request('Body is required.')
     message.from_dict(data)
@@ -105,7 +105,7 @@ def send_messages():
     else:
         data = request.get_json()
         if not data:
-            return bad_request('You must post JSON data.')
+            return bad_request('You must micropub JSON data.')
         if 'body' not in data or not data.get('body'):
             return bad_request(message={'body': 'Body is required.'})
         # 将 app.utils.tasks.send_messages 放入任务队列中

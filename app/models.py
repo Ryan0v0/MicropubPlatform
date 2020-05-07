@@ -440,7 +440,7 @@ class User(PaginatedAPIMixin, db.Model):
         '''
         last_read_time = self.last_recived_comments_read_time or datetime(1900, 1, 1)
         # 用户发布的所有微知识
-        user_posts_ids = [post.id for post in self.micropubs.all()]
+        user_posts_ids = [micropub.id for micropub in self.micropubs.all()]
         # 用户微知识下面的新评论, 即评论的 post_id 在 user_posts_ids 集合中，且评论的 author 不是自己(微知识的作者)
         q1 = set(Comment.query.filter(Comment.post_id.in_(user_posts_ids), Comment.author != self).all())
 
@@ -621,7 +621,7 @@ class Post(SearchableMixin, PaginatedAPIMixin, db.Model):
     # 外键, 直接操纵数据库当user下面有posts时不允许删除user，下面仅仅是 ORM-level “delete” cascade
     # db.ForeignKey('users.id', ondelete='CASCADE') 会同时在数据库中指定 FOREIGN KEY level “ON DELETE” cascade
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    comments = db.relationship('Comment', backref='post', lazy='dynamic',
+    comments = db.relationship('Comment', backref='micropub', lazy='dynamic',
                                cascade='all, delete-orphan')
     # 博客微知识与喜欢/收藏它的人是多对多关系
     likers = db.relationship('User', secondary=posts_likes, backref=db.backref('liked_posts', lazy='dynamic'), lazy='dynamic')
@@ -754,10 +754,10 @@ class Comment(PaginatedAPIMixin, db.Model):
                 'name': self.author.name,
                 'avatar': self.author.avatar(128)
             },
-            'post': {
-                'id': self.post.id,
-                'title': self.post.title,
-                'author_id': self.post.author.id
+            'micropub': {
+                'id': self.micropub.id,
+                'title': self.micropub.title,
+                'author_id': self.micropub.author.id
             },
             'parent_id': self.parent.id if self.parent else None,
             # 'children': [child.to_dict() for child in self.children] if self.children else None,

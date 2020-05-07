@@ -117,9 +117,9 @@ def export_posts(*args, **kwargs):
 
         user = User.query.get(kwargs.get('user_id'))
         total_posts = user.micropubs.count()
-        for post in user.micropubs.order_by(Post.timestamp.asc()):
-            data.append({'body': post.body,
-                         'timestamp': post.timestamp.isoformat() + 'Z'})
+        for micropub in user.micropubs.order_by(Post.timestamp.asc()):
+            data.append({'body': micropub.body,
+                         'timestamp': micropub.timestamp.isoformat() + 'Z'})
             time.sleep(3)
             i += 1
             _set_task_progress(100 * i // total_posts)

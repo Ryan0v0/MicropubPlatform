@@ -26,7 +26,7 @@ def create_role():
     '''注册一个新角色'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request('You must micropub JSON data.')
 
     message = {}
     if 'slug' not in data or not data.get('slug', None).strip():
@@ -95,7 +95,7 @@ def update_role(id):
     role = Role.query.get_or_404(id)
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request('You must micropub JSON data.')
 
     message = {}
     if 'slug' not in data or not data.get('slug', None).strip():

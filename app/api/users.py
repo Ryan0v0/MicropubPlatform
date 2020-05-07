@@ -17,7 +17,7 @@ def create_user():
     '''注册一个新用户'''
     data = request.get_json()
     if not data:
-        return bad_request(_('You must post JSON data.'))
+        return bad_request(_('You must micropub JSON data.'))
 
     message = {}
     if 'username' not in data or not data.get('username', None).strip():
@@ -112,7 +112,7 @@ def update_user(id):
     user = User.query.get_or_404(id)
     data = request.get_json()
     if not data:
-        return bad_request(_('You must post JSON data.'))
+        return bad_request(_('You must micropub JSON data.'))
 
     message = {}
     if 'username' in data and not data.get('username', None).strip():
@@ -363,7 +363,7 @@ def get_user_recived_comments(id):
         request.args.get(
             'per_page', current_app.config['COMMENTS_PER_PAGE'], type=int), 100)
     # 用户发布的所有微知识ID集合
-    user_posts_ids = [post.id for post in user.micropubs.all()]
+    user_posts_ids = [micropub.id for micropub in user.micropubs.all()]
     # 用户微知识下面的新评论, 即评论的 post_id 在 user_posts_ids 集合中，且评论的 author 不是自己(微知识的作者)
     q1 = Comment.query.filter(Comment.post_id.in_(user_posts_ids), Comment.author != user)
     # 用户发表的评论被人回复了
@@ -477,7 +477,7 @@ def get_user_recived_posts_likes(id):
             if u != user:  # 用户自己喜欢自己的微知识不需要被通知
                 data = {}
                 data['user'] = u.to_dict()
-                data['post'] = p.to_dict()
+                data['micropub'] = p.to_dict()
                 # 获取喜欢时间
                 res = db.engine.execute("select * from posts_likes where user_id={} and post_id={}".format(u.id, p.id))
                 data['timestamp'] = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
@@ -673,7 +673,7 @@ def resend_confirmation():
     '''重新发送确认账户的邮件'''
     data = request.get_json()
     if not data:
-        return bad_request(_('You must post JSON data.'))
+        return bad_request(_('You must micropub JSON data.'))
     if 'confirm_email_base_url' not in data or not data.get('confirm_email_base_url').strip():
         return bad_request(_('Please provide a valid confirm email base url.'))
 
@@ -735,7 +735,7 @@ def reset_password_request():
     '''请求重置账户密码，需要提供注册时填写的邮箱地址'''
     data = request.get_json()
     if not data:
-        return bad_request(_('You must post JSON data.'))
+        return bad_request(_('You must micropub JSON data.'))
 
     message = {}
     if 'confirm_email_base_url' not in data or not data.get('confirm_email_base_url').strip():
@@ -787,7 +787,7 @@ def reset_password(token):
     '''用户点击邮件中的链接，通过验证 JWT 来重置对应的账户的密码'''
     data = request.get_json()
     if not data:
-        return bad_request(_('You must post JSON data.'))
+        return bad_request(_('You must micropub JSON data.'))
     if 'password' not in data or not data.get('password', None).strip():
         return bad_request(_('Please provide a valid password.'))
     user = User.verify_reset_password_jwt(token)
@@ -807,7 +807,7 @@ def update_password():
     '''已登录的用户更新自己的密码'''
     data = request.get_json()
     if not data:
-        return bad_request(_('You must post JSON data.'))
+        return bad_request(_('You must micropub JSON data.'))
 
     if 'old_password' not in data or not data.get('old_password', None).strip():
         return bad_request(_('Please provide a valid old password.'))
