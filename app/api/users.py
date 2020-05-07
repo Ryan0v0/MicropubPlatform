@@ -2,12 +2,14 @@ from datetime import datetime
 from operator import itemgetter
 import re
 from flask import request, jsonify, url_for, g, current_app
+from flask_babel import gettext as _
 from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import bad_request, error_response
 from app.extensions import db
-from app.models import micropubs_likes, User, Micropub, Notification, Message
+from app.models import Permission, comments_likes, posts_likes, User, Post, Comment, Notification, Message, Task
 from app.utils.email import send_email
+from app.utils.decorator import permission_required
 
 
 @bp.route('/users/', methods=['POST'])
@@ -15,21 +17,21 @@ def create_user():
     '''注册一个新用户'''
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     message = {}
     if 'username' not in data or not data.get('username', None).strip():
-        message['username'] = 'Please provide a valid username.'
+        message['username'] = _('Please provide a valid username.')
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' not in data or not re.match(pattern, data.get('email', None)):
-        message['email'] = 'Please provide a valid email address.'
+        message['email'] = _('Please provide a valid email address.')
     if 'password' not in data or not data.get('password', None).strip():
-        message['password'] = 'Please provide a valid password.'
+        message['password'] = _('Please provide a valid password.')
 
     if User.query.filter_by(username=data.get('username', None)).first():
-        message['username'] = 'Please use a different username.'
+        message['username'] = _('Please use a different username.')
     if User.query.filter_by(email=data.get('email', None)).first():
-        message['email'] = 'Please use a different email address.'
+        message['email'] = _('Please use a different email address.')
     if message:
         return bad_request(message)
 
@@ -86,7 +88,7 @@ def get_users():
     per_page = min(
         request.args.get(
             'per_page', current_app.config['USERS_PER_PAGE'], type=int), 100)
-    data = User.to_collection_dict(User.query, page, per_page, 'api.get_users')
+    data = User.to_collection_dict(User.query.order_by(User.member_since.desc()), page, per_page, 'api.get_users')
     return jsonify(data)
 
 
@@ -110,22 +112,22 @@ def update_user(id):
     user = User.query.get_or_404(id)
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     message = {}
     if 'username' in data and not data.get('username', None).strip():
-        message['username'] = 'Please provide a valid username.'
+        message['username'] = _('Please provide a valid username.')
 
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' in data and not re.match(pattern, data.get('email', None)):
-        message['email'] = 'Please provide a valid email address.'
+        message['email'] = _('Please provide a valid email address.')
 
     if 'username' in data and data['username'] != user.username and \
             User.query.filter_by(username=data['username']).first():
-        message['username'] = 'Please use a different username.'
+        message['username'] = _('Please use a different username.')
     if 'email' in data and data['email'] != user.email and \
             User.query.filter_by(email=data['email']).first():
-        message['email'] = 'Please use a different email address.'
+        message['email'] = _('Please use a different email address.')
 
     if message:
         return bad_request(message)
@@ -140,7 +142,7 @@ def update_user(id):
 def delete_user(id):
     '''删除一个用户'''
     user = User.query.get_or_404(id)
-    if g.current_user != user:
+    if g.current_user != user and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
     db.session.delete(user)
     db.session.commit()
@@ -167,25 +169,28 @@ def get_user_notifications(id):
 ###
 @bp.route('/follow/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def follow(id):
     '''开始关注一个用户'''
     user = User.query.get_or_404(id)
     if g.current_user == user:
-        return bad_request('You cannot follow yourself.')
+        return bad_request(_('You cannot follow yourself.'))
     if g.current_user.is_following(user):
-        return bad_request('You have already followed that user.')
+        return bad_request(_('You have already followed that user.'))
     g.current_user.follow(user)
     # 给该用户发送新粉丝通知
     user.add_notification('unread_follows_count', user.new_follows())
     db.session.commit()
+    username = user.name if user.name else user.username
     return jsonify({
         'status': 'success',
-        'message': 'You are now following %s.' % (user.name if user.name else user.username)
+        'message': _('You are now following %(username)s.', username=username)
     })
 
 
 @bp.route('/unfollow/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def unfollow(id):
     '''取消关注一个用户'''
     user = User.query.get_or_404(id)
@@ -197,9 +202,10 @@ def unfollow(id):
     # 给该用户发送新粉丝通知(需要自动减1)
     user.add_notification('unread_follows_count', user.new_follows())
     db.session.commit()
+    username = user.name if user.name else user.username
     return jsonify({
         'status': 'success',
-        'message': 'You are not following %s anymore.' % (user.name if user.name else user.username)
+        'message': _('You are not following %(username)s anymore.', username=username)
     })
 
 
@@ -273,37 +279,37 @@ def get_followers(id):
 ##
 @bp.route('/users/<int:id>/micropubs/', methods=['GET'])
 @token_auth.login_required
-def get_user_micropubs(id):
+def get_user_posts(id):
     '''返回该用户的所有博客微知识列表'''
     user = User.query.get_or_404(id)
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    data = Micropub.to_collection_dict(
-        user.micropubs.order_by(Micropub.timestamp.desc()), page, per_page,
-        'api.get_user_micropubs', id=id)
+    data = Post.to_collection_dict(
+        user.micropubs.order_by(Post.timestamp.desc()), page, per_page,
+        'api.get_user_posts', id=id)
     return jsonify(data)
 
 
 @bp.route('/users/<int:id>/liked-micropubs/', methods=['GET'])
 @token_auth.login_required
-def get_user_liked_micropubs(id):
-    '''返回该用户引用别人的微知识列表'''
+def get_user_liked_posts(id):
+    '''返回该用户喜欢别人的微知识列表'''
     user = User.query.get_or_404(id)
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    data = Micropub.to_collection_dict(
-        user.liked_micropubs.order_by(Micropub.timestamp.desc()), page, per_page,
-        'api.get_user_liked_micropubs', id=id)
+    data = Post.to_collection_dict(
+        user.liked_posts.order_by(Post.timestamp.desc()), page, per_page,
+        'api.get_user_liked_posts', id=id)
     return jsonify(data)
 
 
 @bp.route('/users/<int:id>/followeds-micropubs/', methods=['GET'])
 @token_auth.login_required
-def get_user_followeds_micropubs(id):
+def get_user_followeds_posts(id):
     '''返回该用户所关注的大神的所有博客微知识列表'''
     user = User.query.get_or_404(id)
     if g.current_user != user:
@@ -312,25 +318,135 @@ def get_user_followeds_micropubs(id):
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    data = Micropub.to_collection_dict(
-        user.followeds_micropubs().order_by(Micropub.timestamp.desc()), page, per_page,
-        'api.get_user_followeds_micropubs', id=id)
+    data = Post.to_collection_dict(
+        user.followeds_posts().order_by(Post.timestamp.desc()), page, per_page,
+        'api.get_user_followeds_posts', id=id)
     # 标记哪些微知识是新的
-    last_read_time = user.last_followeds_micropubs_read_time or datetime(1900, 1, 1)
+    last_read_time = user.last_followeds_posts_read_time or datetime(1900, 1, 1)
     for item in data['items']:
         if item['timestamp'] > last_read_time:
             item['is_new'] = True
-    # 更新 last_followeds_micropubs_read_time 属性值
-    user.last_followeds_micropubs_read_time = datetime.utcnow()
+    # 更新 last_followeds_posts_read_time 属性值
+    user.last_followeds_posts_read_time = datetime.utcnow()
     # 将新微知识通知的计数归零
-    user.add_notification('unread_followeds_micropubs_count', 0)
+    user.add_notification('unread_followeds_posts_count', 0)
     db.session.commit()
     return jsonify(data)
 
+
+@bp.route('/users/<int:id>/comments/', methods=['GET'])
+@token_auth.login_required
+def get_user_comments(id):
+    '''返回该用户发表过的所有评论列表'''
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return error_response(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['COMMENTS_PER_PAGE'], type=int), 100)
+    data = Comment.to_collection_dict(
+        user.comments.order_by(Comment.timestamp.desc()), page, per_page,
+        'api.get_user_comments', id=id)
+    return jsonify(data)
+
+
+@bp.route('/users/<int:id>/recived-comments/', methods=['GET'])
+@token_auth.login_required
+def get_user_recived_comments(id):
+    '''返回该用户收到的所有评论'''
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return error_response(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['COMMENTS_PER_PAGE'], type=int), 100)
+    # 用户发布的所有微知识ID集合
+    user_posts_ids = [post.id for post in user.micropubs.all()]
+    # 用户微知识下面的新评论, 即评论的 post_id 在 user_posts_ids 集合中，且评论的 author 不是自己(微知识的作者)
+    q1 = Comment.query.filter(Comment.post_id.in_(user_posts_ids), Comment.author != user)
+    # 用户发表的评论被人回复了
+    descendants = set()
+    for c in user.comments:
+        descendants = descendants | c.get_descendants()
+    descendants = descendants - set(user.comments.all())  # 除去自己在底下回复的
+    descendants_ids = [c.id for c in descendants]
+    q2 = Comment.query.filter(Comment.id.in_(descendants_ids))
+    # 按时间倒序排列构成用户收到的所有评论
+    recived_comments = q1.union(q2).order_by(Comment.mark_read, Comment.timestamp.desc())
+    # 分页后的 JSON 数据
+    data = Comment.to_collection_dict(recived_comments, page, per_page, 'api.get_user_recived_comments', id=id)
+    # 标记哪些评论是新的
+    last_read_time = user.last_recived_comments_read_time or datetime(1900, 1, 1)
+    for item in data['items']:
+        if item['timestamp'] > last_read_time:
+            item['is_new'] = True
+    # 更新 last_recived_comments_read_time 属性值
+    user.last_recived_comments_read_time = datetime.utcnow()
+    # 将新评论通知的计数归零
+    user.add_notification('unread_recived_comments_count', 0)
+    db.session.commit()
+    return jsonify(data)
+
+
+@bp.route('/users/<int:id>/recived-comments-likes/', methods=['GET'])
+@token_auth.login_required
+def get_user_recived_comments_likes(id):
+    '''返回该用户收到的评论赞'''
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return error_response(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['COMMENTS_PER_PAGE'], type=int), 100)
+    # 用户哪些评论被点赞了，分页
+    comments = user.comments.join(comments_likes).paginate(page, per_page)
+    # 点赞记录
+    records = {
+        'items': [],
+        '_meta': {
+            'page': page,
+            'per_page': per_page,
+            'total_pages': comments.pages,
+            'total_items': comments.total
+        },
+        '_links': {
+            'self': url_for('api.get_user_recived_comments_likes', page=page, per_page=per_page, id=id),
+            'next': url_for('api.get_user_recived_comments_likes', page=page + 1, per_page=per_page, id=id) if comments.has_next else None,
+            'prev': url_for('api.get_user_recived_comments_likes', page=page - 1, per_page=per_page, id=id) if comments.has_prev else None
+        }
+    }
+    for c in comments.items:
+        # 重组数据，变成: (谁) (什么时间) 点赞了你的 (哪条评论)
+        for u in c.likers:
+            if u != user:  # 用户自己点赞自己的评论不需要被通知
+                data = {}
+                data['user'] = u.to_dict()
+                data['comment'] = c.to_dict()
+                # 获取点赞时间
+                res = db.engine.execute("select * from comments_likes where user_id={} and comment_id={}".format(u.id, c.id))
+                data['timestamp'] = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
+                # 标记本条点赞记录是否为新的
+                last_read_time = user.last_comments_likes_read_time or datetime(1900, 1, 1)
+                if data['timestamp'] > last_read_time:
+                    data['is_new'] = True
+                records['items'].append(data)
+    # 按 timestamp 排序一个字典列表(倒序，最新点赞的人在最前面)
+    records['items'] = sorted(records['items'], key=itemgetter('timestamp'), reverse=True)
+    # 更新 last_comments_likes_read_time 属性值
+    user.last_comments_likes_read_time = datetime.utcnow()
+    # 将新点赞通知的计数归零
+    user.add_notification('unread_comments_likes_count', 0)
+    db.session.commit()
+    return jsonify(records)
+
+
 @bp.route('/users/<int:id>/recived-micropubs-likes/', methods=['GET'])
 @token_auth.login_required
-def get_user_recived_micropubs_likes(id):
-    '''返回该用户收到的微知识引用'''
+def get_user_recived_posts_likes(id):
+    '''返回该用户收到的微知识喜欢'''
     user = User.query.get_or_404(id)
     if g.current_user != user:
         return error_response(403)
@@ -338,9 +454,9 @@ def get_user_recived_micropubs_likes(id):
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    # 用户哪些微知识被引用/收藏了，分页
-    micropubs = user.micropubs.join(micropubs_likes).paginate(page, per_page)
-    # 引用记录
+    # 用户哪些微知识被喜欢/收藏了，分页
+    micropubs = user.micropubs.join(posts_likes).paginate(page, per_page)
+    # 喜欢记录
     records = {
         'items': [],
         '_meta': {
@@ -350,32 +466,32 @@ def get_user_recived_micropubs_likes(id):
             'total_items': micropubs.total
         },
         '_links': {
-            'self': url_for('api.get_user_recived_micropubs_likes', page=page, per_page=per_page, id=id),
-            'next': url_for('api.get_user_recived_micropubs_likes', page=page + 1, per_page=per_page, id=id) if micropubs.has_next else None,
-            'prev': url_for('api.get_user_recived_micropubs_likes', page=page - 1, per_page=per_page, id=id) if micropubs.has_prev else None
+            'self': url_for('api.get_user_recived_posts_likes', page=page, per_page=per_page, id=id),
+            'next': url_for('api.get_user_recived_posts_likes', page=page + 1, per_page=per_page, id=id) if micropubs.has_next else None,
+            'prev': url_for('api.get_user_recived_posts_likes', page=page - 1, per_page=per_page, id=id) if micropubs.has_prev else None
         }
     }
     for p in micropubs.items:
-        # 重组数据，变成: (谁) (什么时间) 引用了你的 (哪篇微知识)
+        # 重组数据，变成: (谁) (什么时间) 喜欢了你的 (哪篇微知识)
         for u in p.likers:
-            if u != user:  # 用户自己引用自己的微知识不需要被通知
+            if u != user:  # 用户自己喜欢自己的微知识不需要被通知
                 data = {}
                 data['user'] = u.to_dict()
-                data['micropub'] = p.to_dict()
-                # 获取引用时间
-                res = db.engine.execute("select * from micropubs_likes where user_id={} and micropub_id={}".format(u.id, p.id))
+                data['post'] = p.to_dict()
+                # 获取喜欢时间
+                res = db.engine.execute("select * from posts_likes where user_id={} and post_id={}".format(u.id, p.id))
                 data['timestamp'] = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
-                # 标记本条引用记录是否为新的
-                last_read_time = user.last_micropubs_likes_read_time or datetime(1900, 1, 1)
+                # 标记本条喜欢记录是否为新的
+                last_read_time = user.last_posts_likes_read_time or datetime(1900, 1, 1)
                 if data['timestamp'] > last_read_time:
                     data['is_new'] = True
                 records['items'].append(data)
-    # 按 timestamp 排序一个字典列表(倒序，最新引用的人在最前面)
+    # 按 timestamp 排序一个字典列表(倒序，最新喜欢的人在最前面)
     records['items'] = sorted(records['items'], key=itemgetter('timestamp'), reverse=True)
-    # 更新 last_micropubs_likes_read_time 属性值
-    user.last_micropubs_likes_read_time = datetime.utcnow()
-    # 将新引用通知的计数归零
-    user.add_notification('unread_micropubs_likes_count', 0)
+    # 更新 last_posts_likes_read_time 属性值
+    user.last_posts_likes_read_time = datetime.utcnow()
+    # 将新喜欢通知的计数归零
+    user.add_notification('unread_posts_likes_count', 0)
     db.session.commit()
     return jsonify(records)
 
@@ -477,7 +593,7 @@ def get_user_history_messages(id):
     last_read_time = user.last_messages_read_time or datetime(1900, 1, 1)
     new_count = 0
     for item in recived_messages:
-        if item['timestamp'] > last_read_time:
+        if item['timestamp'] >= last_read_time:
             item['is_new'] = True
             new_count += 1
     if new_count > 0:
@@ -494,11 +610,29 @@ def get_user_history_messages(id):
     return jsonify(data)
 
 
+@bp.route('/users/<int:id>/tasks/', methods=['GET'])
+@token_auth.login_required
+def get_user_tasks_in_progress(id):
+    '''返回用户所有正在运行中的后台任务'''
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return error_response(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['TASKS_PER_PAGE'], type=int), 100)
+    data = Task.to_collection_dict(
+        Task.query.filter_by(user=user, complete=False), page, per_page,
+        'api.get_user_tasks_in_progress', id=id)
+    return jsonify(data)
+
+
 ###
 # 拉黑 / 取消拉黑
 ###
 @bp.route('/block/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def block(id):
     '''开始拉黑一个用户'''
     user = User.query.get_or_404(id)
@@ -508,14 +642,16 @@ def block(id):
         return bad_request('You have already blocked that user.')
     g.current_user.block(user)
     db.session.commit()
+    username = user.name if user.name else user.username
     return jsonify({
         'status': 'success',
-        'message': 'You are now blocking %s.' % (user.name if user.name else user.username)
+        'message': _('You are now blocking %(username)s.', username=username)
     })
 
 
 @bp.route('/unblock/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def unblock(id):
     '''取消拉黑一个用户'''
     user = User.query.get_or_404(id)
@@ -527,7 +663,7 @@ def unblock(id):
     db.session.commit()
     return jsonify({
         'status': 'success',
-        'message': 'You are not blocking %s anymore.' % (user.name if user.name else user.username)
+        'message': _('You are not blocking %(username)s anymore.', username=username)
     })
 
 
@@ -537,9 +673,9 @@ def resend_confirmation():
     '''重新发送确认账户的邮件'''
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request(_('You must post JSON data.'))
     if 'confirm_email_base_url' not in data or not data.get('confirm_email_base_url').strip():
-        return bad_request('Please provide a valid confirm email base url.')
+        return bad_request(_('Please provide a valid confirm email base url.'))
 
     token = g.current_user.generate_confirm_jwt()
 
@@ -570,7 +706,7 @@ def resend_confirmation():
                html_body=html_body)
     return jsonify({
         'status': 'success',
-        'message': 'A new confirmation email has been sent to you by email.'
+        'message': _('A new confirmation email has been sent to you by email.')
     })
 
 
@@ -579,7 +715,7 @@ def resend_confirmation():
 def confirm(token):
     '''用户收到验证邮件后，验证其账户'''
     if g.current_user.confirmed:
-        return bad_request('You have already confirmed your account.')
+        return bad_request(_('You have already confirmed your account.'))
     if g.current_user.verify_confirm_jwt(token):
         g.current_user.ping()
         db.session.commit()
@@ -587,11 +723,11 @@ def confirm(token):
         token = g.current_user.get_jwt()
         return jsonify({
             'status': 'success',
-            'message': 'You have confirmed your account. Thanks!',
+            'message': _('You have confirmed your account. Thanks!'),
             'token': token
         })
     else:
-        return bad_request('The confirmation link is invalid or has expired.')
+        return bad_request(_('The confirmation link is invalid or has expired.'))
 
 
 @bp.route('/reset-password-request', methods=['POST'])
@@ -599,14 +735,14 @@ def reset_password_request():
     '''请求重置账户密码，需要提供注册时填写的邮箱地址'''
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     message = {}
     if 'confirm_email_base_url' not in data or not data.get('confirm_email_base_url').strip():
-        message['confirm_email_base_url'] = 'Please provide a valid confirm email base url.'
+        message['confirm_email_base_url'] = _('Please provide a valid confirm email base url.')
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' not in data or not re.match(pattern, data.get('email', None)):
-        message['email'] = 'Please provide a valid email address.'
+        message['email'] = _('Please provide a valid email address.')
     if message:
         return bad_request(message)
 
@@ -642,7 +778,7 @@ def reset_password_request():
     # 不管前端提供的邮箱地址有没有对应的用户实例(不排除有人想恶意重置别人的账户)，都给他回应
     return jsonify({
         'status': 'success',
-        'message': 'An email with instructions to reset your password has been sent to you.'
+        'message': _('An email with instructions to reset your password has been sent to you.')
     })
 
 
@@ -651,17 +787,17 @@ def reset_password(token):
     '''用户点击邮件中的链接，通过验证 JWT 来重置对应的账户的密码'''
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request(_('You must post JSON data.'))
     if 'password' not in data or not data.get('password', None).strip():
-        return bad_request('Please provide a valid password.')
+        return bad_request(_('Please provide a valid password.'))
     user = User.verify_reset_password_jwt(token)
     if not user:
-        return bad_request('The reset password link is invalid or has expired.')
+        return bad_request(_('The reset password link is invalid or has expired.'))
     user.set_password(data.get('password'))
     db.session.commit()
     return jsonify({
         'status': 'success',
-        'message': 'Your password has been reset.'
+        'message': _('Your password has been reset.')
     })
 
 
@@ -671,20 +807,20 @@ def update_password():
     '''已登录的用户更新自己的密码'''
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     if 'old_password' not in data or not data.get('old_password', None).strip():
-        return bad_request('Please provide a valid old password.')
+        return bad_request(_('Please provide a valid old password.'))
     if 'new_password' not in data or not data.get('new_password', None).strip():
-        return bad_request('Please provide a valid new password.')
+        return bad_request(_('Please provide a valid new password.'))
     if data.get('old_password') == data.get('new_password'):
-        return bad_request('The new password is equal to the old password.')
+        return bad_request(_('The new password is equal to the old password.'))
     # 验证旧密码
     if not g.current_user.check_password(data.get('old_password')):
-        return bad_request('The old password is wrong.')
+        return bad_request(_('The old password is wrong.'))
     g.current_user.set_password(data.get('new_password'))
     db.session.commit()
     return jsonify({
         'status': 'success',
-        'message': 'Your password has been updated.'
+        'message': _('Your password has been updated.')
     })

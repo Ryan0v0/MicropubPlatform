@@ -4,6 +4,7 @@ from app.api.auth import token_auth
 from app.api.errors import error_response, bad_request
 from app.extensions import db
 from app.models import User, Message
+from app.utils.decorator import admin_required
 
 
 @bp.route('/messages/', methods=['POST'])
@@ -12,7 +13,7 @@ def create_message():
     '''给其它用户发送私信'''
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request('You must post JSON data.')
     if 'body' not in data or not data.get('body'):
         return bad_request('Body is required.')
     if 'recipient_id' not in data or not data.get('recipient_id'):
@@ -71,7 +72,7 @@ def update_message(id):
         return error_response(403)
     data = request.get_json()
     if not data:
-        return bad_request('You must micropub JSON data.')
+        return bad_request('You must post JSON data.')
     if 'body' not in data or not data.get('body'):
         return bad_request('Body is required.')
     message.from_dict(data)
@@ -92,3 +93,21 @@ def delete_message(id):
                                        message.recipient.new_recived_messages())
     db.session.commit()
     return '', 204
+
+
+@bp.route('/send-messages/', methods=['POST'])
+@token_auth.login_required
+@admin_required
+def send_messages():
+    '''群发私信'''
+    if g.current_user.get_task_in_progress('send_messages'):  # 如果用户已经有同名的后台任务在运行中时
+        return bad_request('上一个群发私信的后台任务尚未结束')
+    else:
+        data = request.get_json()
+        if not data:
+            return bad_request('You must post JSON data.')
+        if 'body' not in data or not data.get('body'):
+            return bad_request(message={'body': 'Body is required.'})
+        # 将 app.utils.tasks.send_messages 放入任务队列中
+        g.current_user.launch_task('send_messages', '正在群发私信...', kwargs={'user_id': g.current_user.id, 'body': data.get('body')})
+        return jsonify(message='正在运行群发私信后台任务')
