@@ -4,7 +4,7 @@ import time
 from rq import get_current_job
 from app import create_app
 from app.extensions import db
-from app.models import User, Post, Message, Task
+from app.models import User, Micropub, Message, Task
 from app.utils.email import send_email
 from config import Config
 
@@ -108,7 +108,7 @@ def send_messages(*args, **kwargs):
         app.logger.error('[群发私信]后台任务出错了', exc_info=sys.exc_info())
 
 
-def export_posts(*args, **kwargs):
+def export_micropubs(*args, **kwargs):
     '''导出用户的所有微知识'''
     try:
         _set_task_progress(0)
@@ -116,13 +116,13 @@ def export_posts(*args, **kwargs):
         data = []
 
         user = User.query.get(kwargs.get('user_id'))
-        total_posts = user.micropubs.count()
-        for micropub in user.micropubs.order_by(Post.timestamp.asc()):
+        total_micropubs = user.micropubs.count()
+        for micropub in user.micropubs.order_by(Micropub.timestamp.asc()):
             data.append({'body': micropub.body,
                          'timestamp': micropub.timestamp.isoformat() + 'Z'})
             time.sleep(3)
             i += 1
-            _set_task_progress(100 * i // total_posts)
+            _set_task_progress(100 * i // total_micropubs)
 
         text_body = '''
         Dear {},

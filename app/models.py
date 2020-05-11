@@ -121,10 +121,10 @@ blacklist = db.Table(
 )
 
 # 喜欢微知识
-posts_likes = db.Table(
-    'posts_likes',
+micropubs_likes = db.Table(
+    'micropubs_likes',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('post_id', db.Integer, db.ForeignKey('micropubs.id')),
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
     db.Column('timestamp', db.DateTime, default=datetime.utcnow)
 )
 
@@ -251,8 +251,8 @@ class User(PaginatedAPIMixin, db.Model):
     member_since = db.Column(db.DateTime(), default=datetime.utcnow)
     last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
     # 反向引用，直接查询出当前用户的所有博客微知识; 同时，Post实例中会有 author 属性
-    # cascade 用于级联删除，当删除user时，该user下面的所有posts都会被级联删除
-    micropubs = db.relationship('Post', backref='author', lazy='dynamic',
+    # cascade 用于级联删除，当删除user时，该user下面的所有micropubs都会被级联删除
+    micropubs = db.relationship('Micropub', backref='author', lazy='dynamic',
                             cascade='all, delete-orphan')
     # followeds 是该用户关注了哪些用户列表
     # followers 是该用户的粉丝列表
@@ -269,11 +269,11 @@ class User(PaginatedAPIMixin, db.Model):
     # 用户最后一次查看 用户的粉丝 页面的时间，用来判断哪些粉丝是新的
     last_follows_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 收到的微知识被喜欢 页面的时间，用来判断哪些喜欢是新的
-    last_posts_likes_read_time = db.Column(db.DateTime)
+    last_micropubs_likes_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 收到的评论点赞 页面的时间，用来判断哪些点赞是新的
     last_comments_likes_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 关注的人的博客 页面的时间，用来判断哪些微知识是新的
-    last_followeds_posts_read_time = db.Column(db.DateTime)
+    last_followeds_micropubs_read_time = db.Column(db.DateTime)
     # 用户的通知
     notifications = db.relationship('Notification', backref='user',
                                     lazy='dynamic', cascade='all, delete-orphan')
@@ -326,8 +326,8 @@ class User(PaginatedAPIMixin, db.Model):
             'last_seen': self.last_seen.isoformat() + 'Z',
             'followeds_count': self.followeds.count(),
             'followers_count': self.followers.count(),
-            'posts_count': self.micropubs.count(),
-            'followeds_posts_count': self.followeds_posts().count(),
+            'micropubs_count': self.micropubs.count(),
+            'followeds_micropubs_count': self.followeds_micropubs().count(),
             'comments_count': self.comments.count(),
             'confirmed': self.confirmed,
             'role_id': self.role_id,
@@ -337,8 +337,8 @@ class User(PaginatedAPIMixin, db.Model):
                 'avatar': self.avatar(128),
                 'followeds': url_for('api.get_followeds', id=self.id),
                 'followers': url_for('api.get_followers', id=self.id),
-                'micropubs': url_for('api.get_user_posts', id=self.id),
-                'followeds_posts': url_for('api.get_user_followeds_posts', id=self.id),
+                'micropubs': url_for('api.get_user_micropubs', id=self.id),
+                'followeds_micropubs': url_for('api.get_user_followeds_micropubs', id=self.id),
                 'comments': url_for('api.get_user_comments', id=self.id),
                 'role': url_for('api.get_role', id=self.role_id)
             }
@@ -413,15 +413,15 @@ class User(PaginatedAPIMixin, db.Model):
         if self.is_following(user):
             self.followeds.remove(user)
 
-    def followeds_posts(self):
+    def followeds_micropubs(self):
         '''获取当前用户的关注者的所有博客列表'''
-        followed = Post.query.join(
-            followers, (followers.c.followed_id == Post.author_id)).filter(
+        followed = Micropub.query.join(
+            followers, (followers.c.followed_id == Micropub.author_id)).filter(
                 followers.c.follower_id == self.id)
         # 包含当前用户自己的博客列表
-        # own = Post.query.filter_by(user_id=self.id)
-        # return followed.union(own).order_by(Post.timestamp.desc())
-        return followed.order_by(Post.timestamp.desc())
+        # own = Micropub.query.filter_by(user_id=self.id)
+        # return followed.union(own).order_by(Micropub.timestamp.desc())
+        return followed.order_by(Micropub.timestamp.desc())
 
     def add_notification(self, name, data):
         '''给用户实例对象增加通知'''
@@ -440,9 +440,9 @@ class User(PaginatedAPIMixin, db.Model):
         '''
         last_read_time = self.last_recived_comments_read_time or datetime(1900, 1, 1)
         # 用户发布的所有微知识
-        user_posts_ids = [micropub.id for micropub in self.micropubs.all()]
-        # 用户微知识下面的新评论, 即评论的 post_id 在 user_posts_ids 集合中，且评论的 author 不是自己(微知识的作者)
-        q1 = set(Comment.query.filter(Comment.post_id.in_(user_posts_ids), Comment.author != self).all())
+        user_micropubs_ids = [micropub.id for micropub in self.micropubs.all()]
+        # 用户微知识下面的新评论, 即评论的 micropub_id 在 user_micropubs_ids 集合中，且评论的 author 不是自己(微知识的作者)
+        q1 = set(Comment.query.filter(Comment.micropub_id.in_(user_micropubs_ids), Comment.author != self).all())
 
         # 用户发表的评论被人回复了，找到每个用户评论的所有子孙
         q2 = set()
@@ -477,10 +477,10 @@ class User(PaginatedAPIMixin, db.Model):
                         new_likes_count += 1
         return new_likes_count
 
-    def new_followeds_posts(self):
+    def new_followeds_micropubs(self):
         '''用户关注的人的新发布的微知识计数'''
-        last_read_time = self.last_followeds_posts_read_time or datetime(1900, 1, 1)
-        return self.followeds_posts().filter(Post.timestamp > last_read_time).count()
+        last_read_time = self.last_followeds_micropubs_read_time or datetime(1900, 1, 1)
+        return self.followeds_micropubs().filter(Micropub.timestamp > last_read_time).count()
 
     def new_recived_messages(self):
         '''用户未读的私信计数'''
@@ -503,18 +503,18 @@ class User(PaginatedAPIMixin, db.Model):
         if self.is_blocking(user):
             self.harassers.remove(user)
 
-    def new_posts_likes(self):
+    def new_micropubs_likes(self):
         '''用户收到的微知识被喜欢的新计数'''
-        last_read_time = self.last_posts_likes_read_time or datetime(1900, 1, 1)
+        last_read_time = self.last_micropubs_likes_read_time or datetime(1900, 1, 1)
         # 当前用户发布的微知识当中，哪些微知识被喜欢了
-        micropubs = self.micropubs.join(posts_likes).all()
+        micropubs = self.micropubs.join(micropubs_likes).all()
         # 新的喜欢记录计数
         new_likes_count = 0
         for p in micropubs:
             # 获取喜欢时间
             for u in p.likers:
                 if u != self:  # 用户自己喜欢自己的微知识不需要被通知
-                    res = db.engine.execute("select * from posts_likes where user_id={} and post_id={}".format(u.id, p.id))
+                    res = db.engine.execute("select * from micropubs_likes where user_id={} and micropub_id={}".format(u.id, p.id))
                     timestamp = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
                     # 判断本条喜欢记录是否为新的
                     if timestamp > last_read_time:
@@ -609,7 +609,7 @@ class User(PaginatedAPIMixin, db.Model):
         return '<User {}>'.format(self.username)
 
 
-class Post(SearchableMixin, PaginatedAPIMixin, db.Model):
+class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
     __tablename__ = 'micropubs'
     __searchable__ = [('title', True), ('summary', True), ('body', False)]
     id = db.Column(db.Integer, primary_key=True)
@@ -618,21 +618,21 @@ class Post(SearchableMixin, PaginatedAPIMixin, db.Model):
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     views = db.Column(db.Integer, default=0)
-    # 外键, 直接操纵数据库当user下面有posts时不允许删除user，下面仅仅是 ORM-level “delete” cascade
+    # 外键, 直接操纵数据库当user下面有micropubs时不允许删除user，下面仅仅是 ORM-level “delete” cascade
     # db.ForeignKey('users.id', ondelete='CASCADE') 会同时在数据库中指定 FOREIGN KEY level “ON DELETE” cascade
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     comments = db.relationship('Comment', backref='micropub', lazy='dynamic',
                                cascade='all, delete-orphan')
     # 博客微知识与喜欢/收藏它的人是多对多关系
-    likers = db.relationship('User', secondary=posts_likes, backref=db.backref('liked_posts', lazy='dynamic'), lazy='dynamic')
+    likers = db.relationship('User', secondary=micropubs_likes, backref=db.backref('liked_micropubs', lazy='dynamic'), lazy='dynamic')
 
     def __repr__(self):
-        return '<Post {}>'.format(self.title)
+        return '<Micropub {}>'.format(self.title)
 
     @staticmethod
     def on_changed_body(target, value, oldvalue, initiator):
         '''
-        target: 有监听事件发生的 Post 实例对象
+        target: 有监听事件发生的 Micropub 实例对象
         value: 监听哪个字段的变化
         '''
         if not target.summary:  # 如果前端不填写摘要，是空str，而不是None
@@ -664,9 +664,9 @@ class Post(SearchableMixin, PaginatedAPIMixin, db.Model):
             'likers_count': self.likers.count(),
             'comments_count': self.comments.count(),
             '_links': {
-                'self': url_for('api.get_post', id=self.id),
+                'self': url_for('api.get_micropub', id=self.id),
                 'author_url': url_for('api.get_user', id=self.author_id),
-                'comments': url_for('api.get_post_comments', id=self.id)
+                'comments': url_for('api.get_micropub_comments', id=self.id)
             }
         }
         return data
@@ -691,9 +691,9 @@ class Post(SearchableMixin, PaginatedAPIMixin, db.Model):
             self.likers.remove(user)
 
 
-db.event.listen(Post.body, 'set', Post.on_changed_body)  # body 字段有变化时，执行 on_changed_body() 方法
-db.event.listen(Post, 'after_insert', Post.receive_after_insert)
-db.event.listen(Post, 'after_delete', Post.receive_after_delete)
+db.event.listen(Micropub.body, 'set', Micropub.on_changed_body)  # body 字段有变化时，执行 on_changed_body() 方法
+db.event.listen(Micropub, 'after_insert', Micropub.receive_after_insert)
+db.event.listen(Micropub, 'after_delete', Micropub.receive_after_delete)
 
 
 class Comment(PaginatedAPIMixin, db.Model):
@@ -708,7 +708,7 @@ class Comment(PaginatedAPIMixin, db.Model):
     # 外键，评论作者的 id
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     # 外键，评论所属微知识的 id
-    post_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
+    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
     # 自引用的多级评论实现
     parent_id = db.Column(db.Integer, db.ForeignKey('comments.id', ondelete='CASCADE'))
     # 级联删除的 cascade 必须定义在 "多" 的那一侧，所以不能这样定义: parent = db.relationship('Comment', backref='children', remote_side=[id], cascade='all, delete-orphan')
@@ -764,7 +764,7 @@ class Comment(PaginatedAPIMixin, db.Model):
             '_links': {
                 'self': url_for('api.get_comment', id=self.id),
                 'author_url': url_for('api.get_user', id=self.author_id),
-                'post_url': url_for('api.get_post', id=self.post_id),
+                'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
                 'parent_url': url_for('api.get_comment', id=self.parent.id) if self.parent else None,
                 'children_url': [url_for('api.get_comment', id=child.id) for child in self.children] if self.children else None
             }
@@ -772,7 +772,7 @@ class Comment(PaginatedAPIMixin, db.Model):
         return data
 
     def from_dict(self, data):
-        for field in ['body', 'timestamp', 'mark_read', 'disabled', 'author_id', 'post_id', 'parent_id']:
+        for field in ['body', 'timestamp', 'mark_read', 'disabled', 'author_id', 'micropub_id', 'parent_id']:
             if field in data:
                 setattr(self, field, data[field])
 

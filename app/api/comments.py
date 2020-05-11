@@ -3,7 +3,7 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import error_response, bad_request
 from app.extensions import db
-from app.models import Permission, Post, Comment
+from app.models import Permission, Micropub, Comment
 from app.utils.decorator import permission_required
 
 
@@ -17,10 +17,10 @@ def create_comment():
         return bad_request('You must micropub JSON data.')
     if 'body' not in data or not data.get('body').strip():
         return bad_request('Body is required.')
-    if 'post_id' not in data or not data.get('post_id'):
-        return bad_request('Post id is required.')
+    if 'micropub_id' not in data or not data.get('micropub_id'):
+        return bad_request('Micropub id is required.')
 
-    micropub = Post.query.get_or_404(int(data.get('post_id')))
+    micropub = Micropub.query.get_or_404(int(data.get('micropub_id')))
     comment = Comment()
     comment.from_dict(data)
     comment.author = g.current_user

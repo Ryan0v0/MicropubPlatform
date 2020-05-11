@@ -7,7 +7,7 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import bad_request, error_response
 from app.extensions import db
-from app.models import Permission, comments_likes, posts_likes, User, Post, Comment, Notification, Message, Task
+from app.models import Permission, comments_likes, micropubs_likes, User, Micropub, Comment, Notification, Message, Task
 from app.utils.email import send_email
 from app.utils.decorator import permission_required
 
@@ -279,37 +279,37 @@ def get_followers(id):
 ##
 @bp.route('/users/<int:id>/micropubs/', methods=['GET'])
 @token_auth.login_required
-def get_user_posts(id):
+def get_user_micropubs(id):
     '''返回该用户的所有博客微知识列表'''
     user = User.query.get_or_404(id)
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    data = Post.to_collection_dict(
-        user.micropubs.order_by(Post.timestamp.desc()), page, per_page,
-        'api.get_user_posts', id=id)
+    data = Micropub.to_collection_dict(
+        user.micropubs.order_by(Micropub.timestamp.desc()), page, per_page,
+        'api.get_user_micropubs', id=id)
     return jsonify(data)
 
 
 @bp.route('/users/<int:id>/liked-micropubs/', methods=['GET'])
 @token_auth.login_required
-def get_user_liked_posts(id):
+def get_user_liked_micropubs(id):
     '''返回该用户喜欢别人的微知识列表'''
     user = User.query.get_or_404(id)
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    data = Post.to_collection_dict(
-        user.liked_posts.order_by(Post.timestamp.desc()), page, per_page,
-        'api.get_user_liked_posts', id=id)
+    data = Micropub.to_collection_dict(
+        user.liked_micropubs.order_by(Micropub.timestamp.desc()), page, per_page,
+        'api.get_user_liked_micropubs', id=id)
     return jsonify(data)
 
 
 @bp.route('/users/<int:id>/followeds-micropubs/', methods=['GET'])
 @token_auth.login_required
-def get_user_followeds_posts(id):
+def get_user_followeds_micropubs(id):
     '''返回该用户所关注的大神的所有博客微知识列表'''
     user = User.query.get_or_404(id)
     if g.current_user != user:
@@ -318,18 +318,18 @@ def get_user_followeds_posts(id):
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
-    data = Post.to_collection_dict(
-        user.followeds_posts().order_by(Post.timestamp.desc()), page, per_page,
-        'api.get_user_followeds_posts', id=id)
+    data = Micropub.to_collection_dict(
+        user.followeds_micropubs().order_by(Micropub.timestamp.desc()), page, per_page,
+        'api.get_user_followeds_micropubs', id=id)
     # 标记哪些微知识是新的
-    last_read_time = user.last_followeds_posts_read_time or datetime(1900, 1, 1)
+    last_read_time = user.last_followeds_micropubs_read_time or datetime(1900, 1, 1)
     for item in data['items']:
         if item['timestamp'] > last_read_time:
             item['is_new'] = True
-    # 更新 last_followeds_posts_read_time 属性值
-    user.last_followeds_posts_read_time = datetime.utcnow()
+    # 更新 last_followeds_micropubs_read_time 属性值
+    user.last_followeds_micropubs_read_time = datetime.utcnow()
     # 将新微知识通知的计数归零
-    user.add_notification('unread_followeds_posts_count', 0)
+    user.add_notification('unread_followeds_micropubs_count', 0)
     db.session.commit()
     return jsonify(data)
 
@@ -363,9 +363,9 @@ def get_user_recived_comments(id):
         request.args.get(
             'per_page', current_app.config['COMMENTS_PER_PAGE'], type=int), 100)
     # 用户发布的所有微知识ID集合
-    user_posts_ids = [micropub.id for micropub in user.micropubs.all()]
-    # 用户微知识下面的新评论, 即评论的 post_id 在 user_posts_ids 集合中，且评论的 author 不是自己(微知识的作者)
-    q1 = Comment.query.filter(Comment.post_id.in_(user_posts_ids), Comment.author != user)
+    user_micropubs_ids = [micropub.id for micropub in user.micropubs.all()]
+    # 用户微知识下面的新评论, 即评论的 micropub_id 在 user_micropubs_ids 集合中，且评论的 author 不是自己(微知识的作者)
+    q1 = Comment.query.filter(Comment.micropub_id.in_(user_micropubs_ids), Comment.author != user)
     # 用户发表的评论被人回复了
     descendants = set()
     for c in user.comments:
@@ -445,7 +445,7 @@ def get_user_recived_comments_likes(id):
 
 @bp.route('/users/<int:id>/recived-micropubs-likes/', methods=['GET'])
 @token_auth.login_required
-def get_user_recived_posts_likes(id):
+def get_user_recived_micropubs_likes(id):
     '''返回该用户收到的微知识喜欢'''
     user = User.query.get_or_404(id)
     if g.current_user != user:
@@ -455,7 +455,7 @@ def get_user_recived_posts_likes(id):
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     # 用户哪些微知识被喜欢/收藏了，分页
-    micropubs = user.micropubs.join(posts_likes).paginate(page, per_page)
+    micropubs = user.micropubs.join(micropubs_likes).paginate(page, per_page)
     # 喜欢记录
     records = {
         'items': [],
@@ -466,9 +466,9 @@ def get_user_recived_posts_likes(id):
             'total_items': micropubs.total
         },
         '_links': {
-            'self': url_for('api.get_user_recived_posts_likes', page=page, per_page=per_page, id=id),
-            'next': url_for('api.get_user_recived_posts_likes', page=page + 1, per_page=per_page, id=id) if micropubs.has_next else None,
-            'prev': url_for('api.get_user_recived_posts_likes', page=page - 1, per_page=per_page, id=id) if micropubs.has_prev else None
+            'self': url_for('api.get_user_recived_micropubs_likes', page=page, per_page=per_page, id=id),
+            'next': url_for('api.get_user_recived_micropubs_likes', page=page + 1, per_page=per_page, id=id) if micropubs.has_next else None,
+            'prev': url_for('api.get_user_recived_micropubs_likes', page=page - 1, per_page=per_page, id=id) if micropubs.has_prev else None
         }
     }
     for p in micropubs.items:
@@ -479,19 +479,19 @@ def get_user_recived_posts_likes(id):
                 data['user'] = u.to_dict()
                 data['micropub'] = p.to_dict()
                 # 获取喜欢时间
-                res = db.engine.execute("select * from posts_likes where user_id={} and post_id={}".format(u.id, p.id))
+                res = db.engine.execute("select * from micropubs_likes where user_id={} and micropub_id={}".format(u.id, p.id))
                 data['timestamp'] = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
                 # 标记本条喜欢记录是否为新的
-                last_read_time = user.last_posts_likes_read_time or datetime(1900, 1, 1)
+                last_read_time = user.last_micropubs_likes_read_time or datetime(1900, 1, 1)
                 if data['timestamp'] > last_read_time:
                     data['is_new'] = True
                 records['items'].append(data)
     # 按 timestamp 排序一个字典列表(倒序，最新喜欢的人在最前面)
     records['items'] = sorted(records['items'], key=itemgetter('timestamp'), reverse=True)
-    # 更新 last_posts_likes_read_time 属性值
-    user.last_posts_likes_read_time = datetime.utcnow()
+    # 更新 last_micropubs_likes_read_time 属性值
+    user.last_micropubs_likes_read_time = datetime.utcnow()
     # 将新喜欢通知的计数归零
-    user.add_notification('unread_posts_likes_count', 0)
+    user.add_notification('unread_micropubs_likes_count', 0)
     db.session.commit()
     return jsonify(records)
 

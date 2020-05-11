@@ -24,9 +24,9 @@ def upgrade():
     sa.Column('timestamp', sa.DateTime(), nullable=True),
     sa.Column('disabled', sa.Boolean(), nullable=True),
     sa.Column('author_id', sa.Integer(), nullable=True),
-    sa.Column('post_id', sa.Integer(), nullable=True),
+    sa.Column('micropub_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['author_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['post_id'], ['micropubs.id'], ),
+    sa.ForeignKeyConstraint(['micropub_id'], ['micropubs.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_comments_timestamp'), 'comments', ['timestamp'], unique=False)

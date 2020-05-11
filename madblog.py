@@ -4,7 +4,7 @@ import sys
 from flask_babel import gettext as _
 from app import create_app
 from app.extensions import db
-from app.models import Role, User, Post, Comment, Notification, Message, Task
+from app.models import Role, User, Micropub, Comment, Notification, Message, Task
 from config import Config
 
 app = create_app(Config)
@@ -24,7 +24,7 @@ def hello_world():
 
 @app.shell_context_processor
 def make_shell_context():
-    return {'db': db, 'Role': Role, 'User': User, 'Post': Post, 'Comment': Comment,
+    return {'db': db, 'Role': Role, 'User': User, 'Micropub': Micropub, 'Comment': Comment,
             'Notification': Notification, 'Message': Message, 'Task': Task}
 
 

@@ -23,7 +23,7 @@ msgstr ""
 
 #: app/api/users.py:20 app/api/users.py:115 app/api/users.py:676
 #: app/api/users.py:738 app/api/users.py:790 app/api/users.py:810
-msgid "You must post JSON data."
+msgid "You must micropub JSON data."
 msgstr ""
 
 #: app/api/users.py:24 app/api/users.py:119
