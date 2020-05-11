@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask import url_for, current_app
 from app.extensions import db
 from app.utils.elasticsearch import add_to_index, remove_from_index, query_index, es_highlight
-
+from sqlalchemy import text
 
 class SearchableMixin(object):
     @classmethod
@@ -120,13 +120,175 @@ blacklist = db.Table(
     db.Column('timestamp', db.DateTime, default=datetime.utcnow)
 )
 
-# 喜欢微知识
+# 点赞微知识
 micropubs_likes = db.Table(
     'micropubs_likes',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
     db.Column('timestamp', db.DateTime, default=datetime.utcnow)
 )
+
+# 收藏微知识
+micropubs_collects = db.Table(
+    'micropubs_collects',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+)
+
+# 点赞微猜想
+microcons_likes = db.Table(
+    'microcons_likes',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+)
+
+# 收藏微猜想
+microcons_collects = db.Table(
+    'microcons_collects',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+)
+
+# 微猜想引用微证据
+microcons_micropubs = db.Table(
+    'microcons_micropubs',
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+)
+
+# 通过微猜想
+microcons_pros = db.Table(
+    'microcons_pors',
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+)
+
+# 否决微猜想
+microcons_cons = db.Table(
+    'microcons_cons',
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+)
+
+
+# 标签如何新建？？
+class Tag(db.Model):
+    __tablename__ = 'tags'
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(64), index=True)
+    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
+    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id'))
+
+    def __repr__(self):
+        return '<Tag {}>'.format(self.content)
+
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'content': self.content,
+            'micropub_id': self.micropub_id,
+            '_links': {
+                'self': url_for('api.get_tag', id=self.id),
+                'micropub': url_for('api.get_micropub', id=self.micropub_id),
+            }
+        }
+        return data
+
+    def from_dict(self, data):
+        if 'content' in data:
+            setattr(self, 'content', data['content'])
+
+
+class Comment_con(db.Model):
+    __tablename__ = 'comments_con'
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(255), index=True)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
+    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id'))
+
+    def __repr__(self):
+        return '<Comment_con {}>'.format(self.content)
+
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'content': self.content,
+            'timestamp': self.timestamp,
+            'user_id': self.user_id,
+            'micropub_id': self.micropub_id,
+            '_links': {
+                'self': url_for('api.get_comment_con', id=self.id),
+                'user_url': url_for('api.get_user', id=self.user_id),
+                'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
+            }
+        }
+        return data
+
+    def from_dict(self, data):
+        for field in ['content', 'timestamp']:
+            if field in data:
+                setattr(self, field, data[field])
+
+
+class Permission:
+    '''权限认证中的各种操作，对应二进制的位，比如
+    FOLLOW: 0b00000001，转换为十六进制为 0x01
+    COMMENT: 0b00000010，转换为十六进制为 0x02
+    WRITE: 0b00000100，转换为十六进制为 0x04
+    ...
+    ADMIN: 0b10000000，转换为十六进制为 0x80
+
+    中间还预留了第 4、5、6、7 共4位二进制位，以备后续增加操作权限
+    '''
+    # 关注其它用户的权限
+    FOLLOW = 0x01
+    # 发表评论、评论点赞与踩的权限
+    COMMENT = 0x02
+    # 撰写微知识的权限
+    WRITE = 0x04
+    # 管理网站的权限(对应管理员角色)
+    ADMIN = 0x80
+
+
+class Comment(db.Model):
+    __tablename__ = 'comments'
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(255), index=True)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
+    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id'))
+
+    def __repr__(self):
+        return '<Comment {}>'.format(self.content)
+
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'content': self.content,
+            'timestamp': self.timestamp,
+            'user_id': self.user_id,
+            'micropub_id': self.micropub_id,
+            '_links': {
+                'self': url_for('api.get_comment', id=self.id),
+                'user_url': url_for('api.get_user', id=self.user_id),
+                'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
+            }
+        }
+        return data
+
+    def from_dict(self, data):
+        for field in ['content', 'timestamp']:
+            if field in data:
+                setattr(self, field, data[field])
 
 
 class Permission:
@@ -208,7 +370,8 @@ class Role(PaginatedAPIMixin, db.Model):
 
     def get_permissions(self):
         '''获取角色的具体操作权限列表'''
-        p = [(Permission.FOLLOW, 'follow'), (Permission.COMMENT, 'comment'), (Permission.WRITE, 'write'), (Permission.ADMIN, 'admin')]
+        p = [(Permission.FOLLOW, 'follow'), (Permission.COMMENT, 'comment'), (Permission.WRITE, 'write'),
+             (Permission.ADMIN, 'admin')]
         # 过滤掉没有权限，注意不能用 for 循环，因为遍历列表时删除元素可能结果并不是你想要的，参考: https://segmentfault.com/a/1190000007214571
         new_p = filter(lambda x: self.has_permission(x[0]), p)
         return ','.join([x[1] for x in new_p])  # 用逗号拼接成str
@@ -253,7 +416,10 @@ class User(PaginatedAPIMixin, db.Model):
     # 反向引用，直接查询出当前用户的所有博客微知识; 同时，Post实例中会有 author 属性
     # cascade 用于级联删除，当删除user时，该user下面的所有micropubs都会被级联删除
     micropubs = db.relationship('Micropub', backref='author', lazy='dynamic',
-                            cascade='all, delete-orphan')
+                                cascade='all, delete-orphan')
+    microcons = db.relationship('Microcon', backref='author', lazy='dynamic',
+                                cascade='all, delete-orphan')
+
     # followeds 是该用户关注了哪些用户列表
     # followers 是该用户的粉丝列表
     followeds = db.relationship(
@@ -270,10 +436,12 @@ class User(PaginatedAPIMixin, db.Model):
     last_follows_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 收到的微知识被喜欢 页面的时间，用来判断哪些喜欢是新的
     last_micropubs_likes_read_time = db.Column(db.DateTime)
+    last_microcons_likes_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 收到的评论点赞 页面的时间，用来判断哪些点赞是新的
     last_comments_likes_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 关注的人的博客 页面的时间，用来判断哪些微知识是新的
     last_followeds_micropubs_read_time = db.Column(db.DateTime)
+    last_followeds_microcons_read_time = db.Column(db.DateTime)
     # 用户的通知
     notifications = db.relationship('Notification', backref='user',
                                     lazy='dynamic', cascade='all, delete-orphan')
@@ -417,11 +585,17 @@ class User(PaginatedAPIMixin, db.Model):
         '''获取当前用户的关注者的所有博客列表'''
         followed = Micropub.query.join(
             followers, (followers.c.followed_id == Micropub.author_id)).filter(
-                followers.c.follower_id == self.id)
+            followers.c.follower_id == self.id)
         # 包含当前用户自己的博客列表
         # own = Micropub.query.filter_by(user_id=self.id)
         # return followed.union(own).order_by(Micropub.timestamp.desc())
         return followed.order_by(Micropub.timestamp.desc())
+
+    # 当前用户关注的用户的所有微证据列表
+    def followeds_microcons(self):
+        followed = Microcon.query.join(followers, (followers.c.followed_id == Microcon.author_id)). \
+            filter(followers.c.follower_id == self.id)
+        return followed.order_by(Microcon.timestamp.desc())
 
     def add_notification(self, name, data):
         '''给用户实例对象增加通知'''
@@ -470,7 +644,8 @@ class User(PaginatedAPIMixin, db.Model):
             # 获取点赞时间
             for u in c.likers:
                 if u != self:  # 用户自己点赞自己的评论不需要被通知
-                    res = db.engine.execute("select * from comments_likes where user_id={} and comment_id={}".format(u.id, c.id))
+                    res = db.engine.execute(
+                        "select * from comments_likes where user_id={} and comment_id={}".format(u.id, c.id))
                     timestamp = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
                     # 判断本条点赞记录是否为新的
                     if timestamp > last_read_time:
@@ -481,6 +656,11 @@ class User(PaginatedAPIMixin, db.Model):
         '''用户关注的人的新发布的微知识计数'''
         last_read_time = self.last_followeds_micropubs_read_time or datetime(1900, 1, 1)
         return self.followeds_micropubs().filter(Micropub.timestamp > last_read_time).count()
+
+    # 用户关注的人新发布的微猜想数
+    def new_followeds_microcons(self):
+        last_read_time = self.last_followeds_microcons_read_time or datetime(1900, 1, 1)
+        return self.followeds_microcons().filter(Microcon.timestamp > last_read_time).count()
 
     def new_recived_messages(self):
         '''用户未读的私信计数'''
@@ -504,7 +684,7 @@ class User(PaginatedAPIMixin, db.Model):
             self.harassers.remove(user)
 
     def new_micropubs_likes(self):
-        '''用户收到的微知识被喜欢的新计数'''
+        '''用户收到的微知识被点赞的新计数'''
         last_read_time = self.last_micropubs_likes_read_time or datetime(1900, 1, 1)
         # 当前用户发布的微知识当中，哪些微知识被喜欢了
         micropubs = self.micropubs.join(micropubs_likes).all()
@@ -514,9 +694,25 @@ class User(PaginatedAPIMixin, db.Model):
             # 获取喜欢时间
             for u in p.likers:
                 if u != self:  # 用户自己喜欢自己的微知识不需要被通知
-                    res = db.engine.execute("select * from micropubs_likes where user_id={} and micropub_id={}".format(u.id, p.id))
+                    res = db.engine.execute(
+                        "select * from micropubs_likes where user_id={} and micropub_id={}".format(u.id, p.id))
                     timestamp = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
                     # 判断本条喜欢记录是否为新的
+                    if timestamp > last_read_time:
+                        new_likes_count += 1
+        return new_likes_count
+
+    # 用户新收到的微猜想点赞
+    def new_microcons_likes(self):
+        last_read_time = self.last_microcons_likes_read_time or datetime(1900, 1, 1)
+        microcons = self.microcons.join(microcons_likes).all()
+        new_likes_count = 0
+        for p in microcons:
+            for u in p.likers:
+                if u != self:  # 用户自己引用自己的微知识不需要被通知
+                    res = db.engine.execute(
+                        "select * from microcons_likes where user_id={} and microcon_id={}".format(u.id, p.id))
+                    timestamp = datetime.strptime(list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
                     if timestamp > last_read_time:
                         new_likes_count += 1
         return new_likes_count
@@ -613,18 +809,22 @@ class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
     __tablename__ = 'micropubs'
     __searchable__ = [('title', True), ('summary', True), ('body', False)]
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255))
-    summary = db.Column(db.Text)
-    body = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-    views = db.Column(db.Integer, default=0)
-    # 外键, 直接操纵数据库当user下面有micropubs时不允许删除user，下面仅仅是 ORM-level “delete” cascade
-    # db.ForeignKey('users.id', ondelete='CASCADE') 会同时在数据库中指定 FOREIGN KEY level “ON DELETE” cascade
+    title = db.Column(db.String(255), index=True)
+    summary = db.Column(db.String(255))
+    reference = db.Column(db.String(255))  # 参考文献格式引用
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    comments = db.relationship('Comment', backref='micropub', lazy='dynamic',
-                               cascade='all, delete-orphan')
-    # 博客微知识与喜欢/收藏它的人是多对多关系
-    likers = db.relationship('User', secondary=micropubs_likes, backref=db.backref('liked_micropubs', lazy='dynamic'), lazy='dynamic')
+    tags = db.relationship('Tag', backref='micropub', lazy='dynamic',
+                           cascade='all, delete-orphan')
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    views = db.Column(db.Integer, default=0)  # 浏览人次，用于评估热度
+    # 微证据与点赞/收藏它的人是多对多关系
+    likers = db.relationship('User', secondary=micropubs_likes,
+                             backref=db.backref('liked_micropubs', lazy='dynamic'), lazy='dynamic')
+    collecters = db.relationship('User', secondary=micropubs_collects,
+                                 backref=db.backref('collected_micropubs', lazy='dynamic'), lazy='dynamic')
+    # 评论，非级联删除 ?
+    # TODO
+    comments = db.relationship('Comment', backref='micropub', lazy='dynamic')
 
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
@@ -643,57 +843,263 @@ class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
             'id': self.id,
             'title': self.title,
             'summary': self.summary,
-            'body': self.body,
+            'reference': self.reference,
+            'author_id': self.author_id,
+            'tags': [tag.content for tag in self.tags],  # 需要数量吗
             'timestamp': self.timestamp,
             'views': self.views,
+            'likes': self.likers.count(),
             'likers_id': [user.id for user in self.likers],
-            'likers': [
-                {
-                    'id': user.id,
-                    'username': user.username,
-                    'name': user.name,
-                    'avatar': user.avatar(128)
-                } for user in self.likers
-            ],
-            'author': {
-                'id': self.author.id,
-                'username': self.author.username,
-                'name': self.author.name,
-                'avatar': self.author.avatar(128)
-            },
-            'likers_count': self.likers.count(),
-            'comments_count': self.comments.count(),
+            'collects': self.collecters.count(),
+            'collecters_id': [user.id for user in self.collecters],
+            'comments': [comment.to_dict() for comment in self.comments],
             '_links': {
-                'self': url_for('api.get_micropub', id=self.id),
+                'self': url_for('api.get_micropub', id=self.id),  # 有啥用
                 'author_url': url_for('api.get_user', id=self.author_id),
-                'comments': url_for('api.get_micropub_comments', id=self.id)
+                'tag_urls': [url_for('api.get_tag', id=tag.id) for tag in self.tags]
             }
         }
         return data
 
-    def from_dict(self, data):
-        for field in ['title', 'summary', 'body', 'timestamp', 'views']:
+    def add_tags(self, tags):  # 以 content list 的形式传入参数
+        for tag in tags:
+            new_tag = Tag()
+            new_tag.from_dict({'content': tag})
+            new_tag.micropub = self  # important
+            db.session.add(new_tag)
+            db.session.commit()
+
+    def updata_tags(self, tags):  # 先删除再新建
+        for tag in self.tags:
+            db.session.delete(tag)
+            db.session.commit()
+        self.add_tags(tags)
+
+    def from_dict(self, data, add_new=False):
+        for field in ['title', 'summary', 'reference', 'timestamp']:
             if field in data:
                 setattr(self, field, data[field])
+        if 'tags' in data:
+            if add_new:
+                self.add_tags(data['tags'])
+            else:
+                self.updata_tags(data['tags'])
 
+    # 该微证据是否被某用户点赞
     def is_liked_by(self, user):
-        '''判断用户 user 是否已经收藏过该微知识'''
         return user in self.likers
 
+    # 点赞微证据
     def liked_by(self, user):
-        '''收藏'''
         if not self.is_liked_by(user):
             self.likers.append(user)
+            # 切记要先添加点赞记录到数据库
+            # 因为 new_micropubs_likes() 会查询 micropubs_likes 关联表
+            # db.session.add(self)
+            db.session.commit()
+            return True
+        return False
 
+    # 取消点赞
     def unliked_by(self, user):
-        '''取消收藏'''
         if self.is_liked_by(user):
             self.likers.remove(user)
+            # db.session.add(self)
+            db.session.commit()
+            return True
+        return False
+
+    # 该微证据是否被某用户收藏
+    def is_collected_by(self, user):
+        return user in self.collecters
+
+    # 收藏微证据
+    def collected_by(self, user):
+        if not self.is_collected_by(user):
+            self.collecters.append(user)
+            db.session.commit()
+            return True
+        return False
+
+    # 取消收藏
+    def uncollected_by(self, user):
+        if self.is_collected_by(user):
+            self.collecters.remove(user)
+            db.session.commit()
+            return True
+        return False
+
+    def viewed(self):
+        self.views += 1
+
+# db.event.listen(Micropub.body, 'set', Micropub.on_changed_body)  # body 字段有变化时，执行 on_changed_body() 方法
 
 
-db.event.listen(Micropub.body, 'set', Micropub.on_changed_body)  # body 字段有变化时，执行 on_changed_body() 方法
-db.event.listen(Micropub, 'after_insert', Micropub.receive_after_insert)
-db.event.listen(Micropub, 'after_delete', Micropub.receive_after_delete)
+# TODO?
+# db.event.listen(Micropub, 'after_insert', Micropub.receive_after_insert)
+# db.event.listen(Micropub, 'after_delete', Micropub.receive_after_delete)
+
+class Microcon(PaginatedAPIMixin, db.Model):
+    __tablename__ = 'microcons'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), index=True)
+    summary = db.Column(db.String(255))
+    # 引用微证据，多对多关系
+    micropubs = db.relationship('Micropub', secondary=microcons_micropubs,
+                                backref=db.backref('derived_microcons', lazy='dynamic'), lazy='dynamic')
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    tags = db.relationship('Tag', backref='microcon', lazy='dynamic',
+                           cascade='all, delete-orphan')
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    views = db.Column(db.Integer, default=0)  # 浏览人次，用于评估热度
+    # status = db.Column(db.Integer, default=0) # 对个人而言？评审中 0， 已通过 1， 已否决 -1
+    # 微猜想与通过或者否决它的人是多对多关系
+    pros = db.relationship('User', secondary=microcons_pros,
+                           backref=db.backref('proed_micocons'), lazy='dynamic')
+    cons = db.relationship('User', secondary=microcons_cons,
+                           backref=db.backref('coned_microcons'), lazy='dynamic')
+    # 微猜想与点赞/收藏它的人是多对多关系
+    likers = db.relationship('User', secondary=microcons_likes,
+                             backref=db.backref('liked_microcons', lazy='dynamic'), lazy='dynamic')
+    collecters = db.relationship('User', secondary=microcons_collects,
+                                 backref=db.backref('collected_microcons', lazy='dynamic'), lazy='dynamic')
+    # 评论，非级联删除
+    comments = db.relationship('Comment', backref='microcon', lazy='dynamic')
+
+    def __repr__(self):
+        return '<Micropub {}>'.format(self.title)
+
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'title': self.title,
+            'summary': self.summary,
+            'micropubs': [micropub.id for micropub in self.micropubs],
+            'author_id': self.author_id,
+            'tags': [tag.content for tag in self.tags],  # 需要数量吗
+            'timestamp': self.timestamp,
+            # 'status': self.status,
+            'pros_num': self.pros.count(),
+            'cons_num': self.cons.count(),
+            'views': self.views,
+            'likes': self.likers.count(),
+            'likers_id': [user.id for user in self.likers],
+            'collects': self.collecters.count(),
+            'collecters_id': [user.id for user in self.collecters],
+            'comments': [comment.to_dict() for comment in self.comments],
+            '_links': {
+                'self': url_for('api.get_microcon', id=self.id),  # 有啥用
+                'author_url': url_for('api.get_user', id=self.author_id),
+                'tags_urls': [url_for('api.get_tag', id=tag.id) for tag in self.tags],
+                'micropubs_urls': [url_for('api.get_micropub', id=micropub.id)
+                                   for micropub in self.micropubs]
+            }
+        }
+        return data
+
+    def add_tags(self, tags):  # 以 content list 的形式传入参数
+        for tag in tags:
+            new_tag = Tag()
+            new_tag.from_dict({'content': tag})
+            new_tag.microcon = self  # important
+            db.session.add(new_tag)
+            db.session.commit()
+
+    def updata_tags(self, tags):  # 先删除再新建
+        for tag in self.tags:
+            db.session.delete(tag)
+            db.session.commit()
+        self.add_tags(tags)
+
+    def add_micropubs(self, micropubs):
+        for m in micropubs:
+            self.micropubs.append(m)
+            db.session.commit()
+
+    def update_micropubs(self, micropubs):
+        for m in self.micropubs:
+            self.micropubs.remove(m)
+        self.add_micropubs(micropubs)
+
+    def from_dict(self, data, add_new=False):
+        for field in ['title', 'summary', 'timestamp']:
+            if field in data:
+                setattr(self, field, data[field])
+        if 'tags' in data:
+            if add_new:
+                self.add_tags(data['tags'])
+            else:
+                self.updata_tags(data['tags'])
+        if 'micropubs' in data:  # 修改微猜想引用的
+            if add_new:
+                print(data['micropubs'])
+                self.add_micropubs(data['micropubs'])
+            else:
+                self.update_micropubs(data['micropubs'])
+
+    # 该微猜想是否被某用户点赞
+    def is_liked_by(self, user):
+        return user in self.likers
+
+    # 点赞微猜想
+    def liked_by(self, user):
+        if not self.is_liked_by(user):
+            self.likers.append(user)
+            # 切记要先添加点赞记录到数据库
+            # 因为 new_micropubs_likes() 会查询 micropubs_likes 关联表
+            # db.session.add(self)
+            db.session.commit()
+            return True
+        return False
+
+    # 取消点赞
+    def unliked_by(self, user):
+        if self.is_liked_by(user):
+            self.likers.remove(user)
+            # db.session.add(self)
+            db.session.commit()
+            return True
+        return False
+
+    # 该微猜想是否被某用户收藏
+    def is_collected_by(self, user):
+        return user in self.collecters
+
+    # 收藏微猜想
+    def collected_by(self, user):
+        if not self.is_collected_by(user):
+            self.collecters.append(user)
+            db.session.commit()
+            return True
+        return False
+
+    # 取消收藏
+    def uncollected_by(self, user):
+        if self.is_collected_by(user):
+            self.collecters.remove(user)
+            db.session.commit()
+            return True
+        return False
+
+    def viewed(self):
+        self.views += 1
+
+    def is_judged_by(self, user):
+        return (user in self.pros) or (user in self.cons)
+
+    def proed_by(self, user):
+        if not self.is_judged_by(user):
+            self.pros.append(user)
+            db.session.commit()
+            return True
+        return False
+
+    def coned_by(self, user):
+        if not self.is_judged_by(user):
+            self.cons.append(user)
+            db.session.commit()
+            return True
+        return False
 
 
 class Comment(PaginatedAPIMixin, db.Model):
@@ -704,7 +1110,8 @@ class Comment(PaginatedAPIMixin, db.Model):
     mark_read = db.Column(db.Boolean, default=False)  # 微知识作者会收到评论提醒，可以标为已读
     disabled = db.Column(db.Boolean, default=False)  # 屏蔽显示
     # 评论与对它点赞的人是多对多关系
-    likers = db.relationship('User', secondary=comments_likes, backref=db.backref('liked_comments', lazy='dynamic'), lazy='dynamic')
+    likers = db.relationship('User', secondary=comments_likes, backref=db.backref('liked_comments', lazy='dynamic'),
+                             lazy='dynamic')
     # 外键，评论作者的 id
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     # 外键，评论所属微知识的 id
@@ -726,6 +1133,7 @@ class Comment(PaginatedAPIMixin, db.Model):
                 data.update(comment.children)
                 for child in comment.children:
                     descendants(child)
+
         descendants(self)
         return data
 
@@ -737,6 +1145,7 @@ class Comment(PaginatedAPIMixin, db.Model):
             if comment.parent:
                 data.append(comment.parent)
                 ancestors(comment.parent)
+
         ancestors(self)
         return data
 
@@ -766,7 +1175,8 @@ class Comment(PaginatedAPIMixin, db.Model):
                 'author_url': url_for('api.get_user', id=self.author_id),
                 'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
                 'parent_url': url_for('api.get_comment', id=self.parent.id) if self.parent else None,
-                'children_url': [url_for('api.get_comment', id=child.id) for child in self.children] if self.children else None
+                'children_url': [url_for('api.get_comment', id=child.id) for child in
+                                 self.children] if self.children else None
             }
         }
         return data

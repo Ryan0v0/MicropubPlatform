@@ -7,7 +7,8 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import bad_request, error_response
 from app.extensions import db
-from app.models import Permission, comments_likes, micropubs_likes, User, Micropub, Comment, Notification, Message, Task
+from app.models import Permission, comments_likes, User, Micropub, Notification, Comment,Message,\
+    micropubs_likes, micropubs_collects, Microcon, microcons_likes, microcons_collects, Task
 from app.utils.email import send_email
 from app.utils.decorator import permission_required
 
