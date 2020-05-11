@@ -223,7 +223,7 @@ class Permission:
     # 管理网站的权限(对应管理员角色)
     ADMIN = 0x80
 
-
+'''
 class Comment(db.Model):
     __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
@@ -255,6 +255,7 @@ class Comment(db.Model):
         for field in ['content', 'timestamp']:
             if field in data:
                 setattr(self, field, data[field])
+'''
 
 
 class Permission:
@@ -788,9 +789,9 @@ class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
                              backref=db.backref('liked_micropubs', lazy='dynamic'), lazy='dynamic')
     collecters = db.relationship('User', secondary=micropubs_collects,
                                  backref=db.backref('collected_micropubs', lazy='dynamic'), lazy='dynamic')
-    # 评论，非级联删除 ?
-    # TODO
-    comments = db.relationship('Comment', backref='micropub', lazy='dynamic')
+    # 评论
+    comments = db.relationship('Comment', backref='micropub', lazy='dynamic',
+                               cascade='all, delete-orphan')
 
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
@@ -929,8 +930,9 @@ class Microcon(PaginatedAPIMixin, db.Model):
                              backref=db.backref('liked_microcons', lazy='dynamic'), lazy='dynamic')
     collecters = db.relationship('User', secondary=microcons_collects,
                                  backref=db.backref('collected_microcons', lazy='dynamic'), lazy='dynamic')
-    # 评论，非级联删除
-    comments = db.relationship('Comment', backref='microcon', lazy='dynamic')
+    # 评论
+    comments = db.relationship('Comment', backref='microcon', lazy='dynamic',
+                               cascade='all, delete-orphan')
 
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
@@ -1067,9 +1069,11 @@ class Microcon(PaginatedAPIMixin, db.Model):
             return True
         return False
 
-
+#
 class Comment(PaginatedAPIMixin, db.Model):
     __tablename__ = 'comments'
+    # __table_args__ = {"extend_existing": True}   # 如果表已经被创建过,需要加这个参数提供扩展
+
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
@@ -1082,6 +1086,7 @@ class Comment(PaginatedAPIMixin, db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     # 外键，评论所属微知识的 id
     micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
+    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id'))
     # 自引用的多级评论实现
     parent_id = db.Column(db.Integer, db.ForeignKey('comments.id', ondelete='CASCADE'))
     # 级联删除的 cascade 必须定义在 "多" 的那一侧，所以不能这样定义: parent = db.relationship('Comment', backref='children', remote_side=[id], cascade='all, delete-orphan')

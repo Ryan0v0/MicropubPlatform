@@ -194,46 +194,6 @@ def delete_micropub(id):
         'message': 'You deleted micropub {}.'.format(id)
     })
 
-###
-# 微知识被喜欢/收藏 或 被取消喜欢/取消收藏
-###
-@bp.route('/micropubs/<int:id>/like', methods=['GET'])
-@token_auth.login_required
-def like_micropub(id):
-    '''喜欢微知识'''
-    micropub = Micropub.query.get_or_404(id)
-    micropub.liked_by(g.current_user)
-    db.session.add(micropub)
-    # 切记要先提交，先添加喜欢记录到数据库，因为 new_micropubs_likes() 会查询 micropubs_likes 关联表
-    db.session.commit()
-    # 给微知识作者发送新喜欢通知
-    micropub.author.add_notification('unread_micropubs_likes_count',
-                                 micropub.author.new_micropubs_likes())
-    db.session.commit()
-    return jsonify({
-        'status': 'success',
-        'message': 'You are now liking this micropub.'
-    })
-
-
-@bp.route('/micropubs/<int:id>/unlike', methods=['GET'])
-@token_auth.login_required
-def unlike_micropub(id):
-    '''取消喜欢微知识'''
-    micropub = Micropub.query.get_or_404(id)
-    micropub.unliked_by(g.current_user)
-    db.session.add(micropub)
-    # 切记要先提交，先添加喜欢记录到数据库，因为 new_micropubs_likes() 会查询 micropubs_likes 关联表
-    db.session.commit()
-    # 给微知识作者发送新喜欢通知(需要自动减1)
-    micropub.author.add_notification('unread_micropubs_likes_count',
-                                 micropub.author.new_micropubs_likes())
-    db.session.commit()
-    return jsonify({
-        'status': 'success',
-        'message': 'You are not liking this micropub anymore.'
-    })
-
 
 # 点赞微证据
 @bp.route('/micropubs/<int:id>/like', methods=['GET'])

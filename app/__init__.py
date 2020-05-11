@@ -6,7 +6,7 @@ from redis import Redis
 import rq
 from flask import Flask, request
 from app.api import bp as api_bp
-from app.api_v2.app import bp as api_v2_bp
+# from app.api_v2.app import bp as api_v2_bp
 from app.extensions import cors, db, migrate, mail, babel
 
 
@@ -44,7 +44,7 @@ def configure_app(app, config_class):
 def configure_blueprints(app):
     # 注册 blueprint
     app.register_blueprint(api_bp, url_prefix='/api')
-    app.register_blueprint(api_v2_bp, url_prefix='/api/v2')
+    # app.register_blueprint(api_v2_bp, url_prefix='/api/v2')
 
 
 def configure_extensions(app):
