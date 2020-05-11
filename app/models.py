@@ -204,40 +204,6 @@ class Tag(db.Model):
         if 'content' in data:
             setattr(self, 'content', data['content'])
 
-
-class Comment_con(db.Model):
-    __tablename__ = 'comments_con'
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(255), index=True)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
-    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id'))
-
-    def __repr__(self):
-        return '<Comment_con {}>'.format(self.content)
-
-    def to_dict(self):
-        data = {
-            'id': self.id,
-            'content': self.content,
-            'timestamp': self.timestamp,
-            'user_id': self.user_id,
-            'micropub_id': self.micropub_id,
-            '_links': {
-                'self': url_for('api.get_comment_con', id=self.id),
-                'user_url': url_for('api.get_user', id=self.user_id),
-                'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
-            }
-        }
-        return data
-
-    def from_dict(self, data):
-        for field in ['content', 'timestamp']:
-            if field in data:
-                setattr(self, field, data[field])
-
-
 class Permission:
     '''权限认证中的各种操作，对应二进制的位，比如
     FOLLOW: 0b00000001，转换为十六进制为 0x01
