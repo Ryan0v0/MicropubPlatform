@@ -5,6 +5,7 @@ from app.api.errors import error_response, bad_request
 from app.extensions import db
 from app.models import User, Message
 from app.utils.decorator import admin_required
+from sqlalchemy import text
 
 
 @bp.route('/messages/', methods=['POST'])

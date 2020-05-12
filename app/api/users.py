@@ -791,7 +791,12 @@ def get_user_messages_senders(id):
 @bp.route('/users/<int:id>/messages-list/', methods=['GET'])
 @token_auth.login_required
 def get_user_messages_list(id):
-    '''我和哪些用户发过私信(包括发送和接收)'''
+    '''
+        当前用户和其他用户通信的最后一条消息集合,
+        包含是否已读 is_new 和 new_count 字段
+        若最后条消息是接收消息，则 is_new 字段表示该消息我方是否已读，new_count 字段表示我方未读消息数；
+        若最后条消息是发送消息，则 is_new 字段表示该消息对方是否已读，new_count 字段表示对方未读消息数；
+    '''
     user = User.query.get_or_404(id)
     if g.current_user != user:
         return error_response(403)
@@ -799,23 +804,57 @@ def get_user_messages_list(id):
     per_page = min(
         request.args.get(
             'per_page', current_app.config['MESSAGES_PER_PAGE'], type=int), 100)
-    '''
+
+    # 找到接收当前用户消息的用户 ID
+    receivers_ids = set()
+    for message in user.messages_sent:
+        receivers_ids.add(message.recipient_id)
+
+    # 找到给当前用户发消息的用户 ID
+    senders_ids = set()
+    for message in user.messages_received:
+        senders_ids.add(message.sender_id)
+
+    # 判断最后一条消息是对方发送的还是我方发送的
+    last_message_dict = {} # key：与我方通信的用户 ID，value：最后一条消息 ID
+    for id in receivers_ids:
+        if id not in last_message_dict:
+            last_message_dict[id] = \
+                user.messages_sent.filter(Message.recipient_id==id).\
+                    order_by(Message.timestamp.desc()).first()
+    for id in senders_ids:
+        message = \
+            user.messages_received.filter(Message.sender_id==id).\
+                order_by(Message.timestamp.desc()).first()
+        if id not in last_message_dict:
+            last_message_dict[id] = message
+        elif message.timestamp > last_message_dict[id].timestamp:
+            last_message_dict[id] = message
+
+    messages_ids_list = []
+    for u_id in last_message_dict:
+        messages_ids_list.append(last_message_dict[u_id].id)
+
     data = Message.to_collection_dict(
-        user.messages_sent.group_by(Message.recipient_id).order_by(Message.timestamp.desc()), page, per_page,
-        'api.get_user_messages_recipients', id=id)
-    
-    # 对方发给我的
-    q1 = Message.query.filter(Message.recipient_id == id)
-    # 我发给对方的
-    q2 = Message.query.filter(Message.sender_id == id)
-    # 按时间正序排列构成完整的对话时间线
-    history_messages = q1.union(q2).order_by(Message.timestamp)
-    data = Message.to_collection_dict(history_messages, page, per_page, 'api.get_user_messages_list', id=id)
-    '''
-    q1 = user.messages_received.group_by(Message.sender_id)
-    q2 = user.messages_sent.group_by(Message.recipient_id)
-    history_messages = q1.union(q2).order_by(Message.timestamp.desc())
-    data = Message.to_collection_dict(history_messages, page, per_page, 'api.get_user_messages_list', id=id)
+        Message.query.filter(Message.id.in_(messages_ids_list)), # list?
+        page, per_page, 'api.get_user_messages_list', id=id)
+
+    for item in data['items']:
+        # 我方收到的消息
+        if item['recipient']['id'] == id:
+            last_read_time = user.last_messages_read_time or datetime(1900, 1, 1)
+            item['is_new'] = item['timestamp'] > last_read_time
+            item['new_count'] = user.messages_received.filter(
+                Message.sender_id==item['sender']['id'],
+                Message.timestamp>last_read_time).count()
+        # 对方收到的消息
+        else:
+            recipient = User.query.filter(User.id==item['recipient']['id']).first()
+            last_read_time = recipient.last_messages_read_time or datetime(1900, 1, 1)
+            item['is_new'] = item['timestamp'] > last_read_time
+            item['new_count'] = user.messages_sent.filter(
+                Message.recipient==recipient,
+                Message.timestamp>last_read_time).count()
     return jsonify(data)
 
 
