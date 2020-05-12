@@ -319,11 +319,20 @@ def pro_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if g.current_user == microcon.author: # 不能审核自己
         return error_response(403)
+    if microcon.status != 0:
+        return jsonify({
+            'status': 'failed',
+            'message': 'This micropub is already in {} state'.
+                format('proed' if microcon.status == 1 else 'coned')
+        })
     if not microcon.proed_by(g.current_user):
         return jsonify({
             'status': 'failed',
             'message': 'You have aready judged microcon {}.'.format(id)
         })
+    if microcon.pros.count() >= 3:
+        microcon.status = 1
+        db.session.commit()
     return jsonify({
         'status': 'success',
         'message': 'You are proing microcon {}.'.format(id)
@@ -336,11 +345,20 @@ def con_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if g.current_user == microcon.author: # 不能审核自己
         return error_response(403)
+    if microcon.status != 0:
+        return jsonify({
+            'status': 'failed',
+            'message': 'This micropub is already in {} state'.
+                format('proed' if microcon.status == 1 else 'coned')
+        })
     if not microcon.coned_by(g.current_user):
         return jsonify({
             'status': 'failed',
             'message': 'You have aready judged microcon {}.'.format(id)
         })
+    if microcon.cons.count() >= 3:
+        microcon.status = -1
+        db.session.commit()
     return jsonify({
         'status': 'success',
         'message': 'You are coning microcon {}.'.format(id)

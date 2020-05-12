@@ -940,6 +940,8 @@ class Microcon(PaginatedAPIMixin, db.Model):
     # 评论
     comments = db.relationship('Comment', backref='microcon', lazy='dynamic',
                                cascade='all, delete-orphan')
+    # 微猜想评审状态，0：待评审；1：已通过；-1 已否决
+    status = db.Column(db.Integer, default=0)
 
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
@@ -953,7 +955,7 @@ class Microcon(PaginatedAPIMixin, db.Model):
             'author_id': self.author_id,
             'tags': [tag.content for tag in self.tags],  # 需要数量吗
             'timestamp': self.timestamp,
-            # 'status': self.status,
+            'status': self.status,
             'pros_num': self.pros.count(),
             'cons_num': self.cons.count(),
             'views': self.views,
