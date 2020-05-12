@@ -41,6 +41,7 @@ def configure_app(app, config_class):
         if app.config['ELASTICSEARCH_URL'] else None
 
 
+
 def configure_blueprints(app):
     # 注册 blueprint
     app.register_blueprint(api_bp, url_prefix='/api')

@@ -50,6 +50,7 @@ def validation_check(data):
                 message['tags'] = 'Tag must less than 64 characters.'
                 break
     return message
+
 @bp.route('/micropubs/', methods=['POST'])
 @token_auth.login_required
 def create_micropub():

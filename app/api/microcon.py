@@ -315,7 +315,7 @@ def get_microcons_by_tags():
 # 通过微猜想
 @bp.route('/microcons/<int:id>/pro', methods=['GET'])
 @token_auth.login_required
-def pro_microcon():
+def pro_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if g.current_user == microcon.author: # 不能审核自己
         return error_response(403)
@@ -332,7 +332,7 @@ def pro_microcon():
 # 否决微猜想
 @bp.route('/microcons/<int:id>/con', methods=['GET'])
 @token_auth.login_required
-def con_microcon():
+def con_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if g.current_user == microcon.author: # 不能审核自己
         return error_response(403)

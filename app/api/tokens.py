@@ -11,4 +11,4 @@ def get_token():
     # 每次用户登录（即成功获取 JWT 后），更新 last_seen 时间
     g.current_user.ping()
     db.session.commit()
-    return jsonify({'token': token})
+    return jsonify({'token': token, 'id': g.current_user.id})

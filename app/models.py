@@ -10,6 +10,7 @@ from app.extensions import db
 from app.utils.elasticsearch import add_to_index, remove_from_index, query_index, es_highlight
 from sqlalchemy import text
 
+
 class SearchableMixin(object):
     @classmethod
     def search(cls, query, page, per_page, ids=None):
@@ -38,8 +39,9 @@ class SearchableMixin(object):
     @classmethod
     def receive_after_insert(cls, mapper, connection, target):
         '''监听 SQLAlchemy 'after_insert' 事件
-        请参考: https://docs.sqlalchemy.org/en/13/orm/events.html#mapper-events'''
-        add_to_index(target.__tablename__, target)
+           请参考: https://docs.sqlalchemy.org/en/13/orm/events.html#mapper-events
+           add_to_index(target.__tablename__, target)
+        '''
 
     @classmethod
     def before_commit(cls, session):
@@ -56,18 +58,19 @@ class SearchableMixin(object):
 
     @classmethod
     def receive_after_delete(cls, mapper, connection, target):
-        '''监听 SQLAlchemy 'after_delete' 事件'''
+        # 监听 SQLAlchemy 'after_delete' 事件
         remove_from_index(target.__tablename__, target)
 
     @classmethod
     def reindex(cls):
-        '''刷新指定数据模型中的所有数据的索引'''
+        # 刷新指定数据模型中的所有数据的索引
         for obj in cls.query:
             add_to_index(cls.__tablename__, obj)
 
 
 db.event.listen(db.session, 'before_commit', SearchableMixin.before_commit)
 db.event.listen(db.session, 'after_commit', SearchableMixin.after_commit)
+
 
 
 class PaginatedAPIMixin(object):
@@ -462,7 +465,9 @@ class User(PaginatedAPIMixin, db.Model):
             'followeds_count': self.followeds.count(),
             'followers_count': self.followers.count(),
             'micropubs_count': self.micropubs.count(),
+            'microcons_count': self.microcons.count(),
             'followeds_micropubs_count': self.followeds_micropubs().count(),
+            'followeds_microcons_count': self.followeds_microcons().count(),
             'comments_count': self.comments.count(),
             'confirmed': self.confirmed,
             'role_id': self.role_id,
@@ -473,6 +478,8 @@ class User(PaginatedAPIMixin, db.Model):
                 'followeds': url_for('api.get_followeds', id=self.id),
                 'followers': url_for('api.get_followers', id=self.id),
                 'micropubs': url_for('api.get_user_micropubs', id=self.id),
+                'microcons': url_for('api.get_user_microcons', id=self.id),
+                'followeds_microcons': url_for('api.get_user_followeds_microcons', id=self.id),
                 'followeds_micropubs': url_for('api.get_user_followeds_micropubs', id=self.id),
                 'comments': url_for('api.get_user_comments', id=self.id),
                 'role': url_for('api.get_role', id=self.role_id)
@@ -771,7 +778,7 @@ class User(PaginatedAPIMixin, db.Model):
     def __repr__(self):
         return '<User {}>'.format(self.username)
 
-
+# class Micropub(PaginatedAPIMixin, db.Model):
 class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
     __tablename__ = 'micropubs'
     __searchable__ = [('title', True), ('summary', True), ('body', False)]
@@ -1138,13 +1145,19 @@ class Comment(PaginatedAPIMixin, db.Model):
                 'id': self.micropub.id,
                 'title': self.micropub.title,
                 'author_id': self.micropub.author.id
-            },
+            } if self.micropub else None,
+            'microcon': {
+                'id': self.microcon.id,
+                'title': self.microcon.title,
+                'author_id': self.microcon.author.id
+            } if self.microcon else None,
             'parent_id': self.parent.id if self.parent else None,
             # 'children': [child.to_dict() for child in self.children] if self.children else None,
             '_links': {
                 'self': url_for('api.get_comment', id=self.id),
                 'author_url': url_for('api.get_user', id=self.author_id),
-                'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
+                'micropub_url': url_for('api.get_micropub', id=self.micropub_id) if self.micropub else None,
+                'microcon_url': url_for('api.get_microcon', id=self.microcon_id) if self.microcon else None,
                 'parent_url': url_for('api.get_comment', id=self.parent.id) if self.parent else None,
                 'children_url': [url_for('api.get_comment', id=child.id) for child in
                                  self.children] if self.children else None
@@ -1153,7 +1166,8 @@ class Comment(PaginatedAPIMixin, db.Model):
         return data
 
     def from_dict(self, data):
-        for field in ['body', 'timestamp', 'mark_read', 'disabled', 'author_id', 'micropub_id', 'parent_id']:
+        for field in ['body', 'timestamp', 'mark_read', 'disabled', 'author_id', 'parent_id',
+                      'micropub_id','microcon_id']:
             if field in data:
                 setattr(self, field, data[field])
 

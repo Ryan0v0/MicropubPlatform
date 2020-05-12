@@ -11,6 +11,7 @@ from app.models import Permission, comments_likes, User, Micropub, Notification,
     micropubs_likes, micropubs_collects, Microcon, microcons_likes, microcons_collects, Task
 from app.utils.email import send_email
 from app.utils.decorator import permission_required
+from sqlalchemy import text, desc, or_
 
 
 @bp.route('/users/', methods=['POST'])
@@ -433,8 +434,10 @@ def get_user_recived_micropubs_likes(id):
 @token_auth.login_required
 def get_user_microcons(id):
     user = User.query.get_or_404(id)
+    '''
     if g.current_user != user:
         return error_response(403)
+    '''
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
@@ -589,7 +592,8 @@ def get_user_comments(id):
     return jsonify(data)
 
 
-@bp.route('/users/<int:id>/recived-comments/', methods=['GET'])
+# TODO mark read may be need to be updated?
+@bp.route('/users/<int:id>/received-comments/', methods=['GET'])
 @token_auth.login_required
 def get_user_recived_comments(id):
     '''返回该用户收到的所有评论'''
@@ -602,9 +606,14 @@ def get_user_recived_comments(id):
             'per_page', current_app.config['COMMENTS_PER_PAGE'], type=int), 100)
     # 用户发布的所有微知识ID集合
     user_micropubs_ids = [micropub.id for micropub in user.micropubs.all()]
-    # 用户微知识下面的新评论, 即评论的 micropub_id 在 user_micropubs_ids 集合中，且评论的 author 不是自己(微知识的作者)
-    q1 = Comment.query.filter(Comment.micropub_id.in_(user_micropubs_ids), Comment.author != user)
-    # 用户发表的评论被人回复了
+    user_microcons_ids = [microcon.id for microcon in user.microcons.all()]
+
+    # 用户微知识下面的评论, 即评论的 micropub_id 在 user_micropubs_ids 集合中，且评论的 author 不是自己(微知识的作者)
+    # 被回复的一级评论
+    q1 = Comment.query.filter(or_(Comment.micropub_id.in_(user_micropubs_ids),
+                                  Comment.microcon_id.in_(user_microcons_ids)),
+                              Comment.author != user, Comment.parent_id.is_(None))
+    # 被回复的非一级评论
     descendants = set()
     for c in user.comments:
         descendants = descendants | c.get_descendants()
@@ -628,7 +637,7 @@ def get_user_recived_comments(id):
     return jsonify(data)
 
 
-@bp.route('/users/<int:id>/recived-comments-likes/', methods=['GET'])
+@bp.route('/users/<int:id>/received-comments-likes/', methods=['GET'])
 @token_auth.login_required
 def get_user_recived_comments_likes(id):
     '''返回该用户收到的评论赞'''
@@ -680,12 +689,42 @@ def get_user_recived_comments_likes(id):
     db.session.commit()
     return jsonify(records)
 
+# 与当前用户有站内信往来的最后一个站内信集合
+@bp.route('/users/<int:id>/messages/', methods=['GET'])
+@token_auth.login_required
+def get_user_messages(id):
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return error_response(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['MESSAGES_PER_PAGE'], type=int), 100)
+    all = Message.query.filter(or_(Message.sender_id==id, Message.recipient_id==id)).order_by(Message.timestamp)
+    data = Message.to_collection_dict(
+        all, page, per_page,
+        'api.get_user_messages', id=id)
+
+    # 标记是否为新的，标记有多少新的
+    for item in data['items']:
+        recipient = User.query.get(item['recipient']['id'])
+        sender = User.query.get(item['sender']['id'])
+        # 对方发给我，我未读
+        if recipient == user:
+            item['is_new'] = item['timestamp'] > \
+                             (user.last_messages_read_time or datetime(1900, 1, 1))
+        # 我发给对方，对方未读
+        elif sender == user:
+            item['is_new'] = item['timestamp'] > \
+                             (recipient.last_messages_read_time or datetime(1900, 1, 1))
+    return jsonify(data)
+
 
 @bp.route('/users/<int:id>/messages-recipients/', methods=['GET'])
 @token_auth.login_required
 def get_user_messages_recipients(id):
-    '''我给哪些用户发过私信，按用户分组，返回我给各用户最后一次发送的私信
-    即: 我给 (谁) 最后一次 发了 (什么私信)'''
+    # 我给哪些用户发过私信，按用户分组，返回我给各用户最后一次发送的私信
+    # 即: 我给 (谁) 最后一次 发了 (什么私信)
     user = User.query.get_or_404(id)
     if g.current_user != user:
         return error_response(403)
@@ -715,8 +754,8 @@ def get_user_messages_recipients(id):
 @bp.route('/users/<int:id>/messages-senders/', methods=['GET'])
 @token_auth.login_required
 def get_user_messages_senders(id):
-    '''哪些用户给我发过私信，按用户分组，返回各用户最后一次发送的私信
-    即: (谁) 最后一次 给我发了 (什么私信)'''
+    # 哪些用户给我发过私信，按用户分组，返回各用户最后一次发送的私信
+    # 即: (谁) 最后一次 给我发了 (什么私信)
     user = User.query.get_or_404(id)
     if g.current_user != user:
         return error_response(403)
@@ -879,7 +918,7 @@ def unblock(id):
     db.session.commit()
     return jsonify({
         'status': 'success',
-        'message': _('You are not blocking %(username)s anymore.', username=username)
+        'message': _('You are not blocking %(username)s anymore.', username=user.username)
     })
 
 

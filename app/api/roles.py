@@ -125,6 +125,8 @@ def update_role(id):
 def delete_role(id):
     '''删除一个角色'''
     role = Role.query.get_or_404(id)
+    slug = role.slug
     db.session.delete(role)
     db.session.commit()
-    return '', 204
+    return jsonify({'status': 'success',
+                    'message':'You have deleted role {}'.format(slug)})
