@@ -1181,11 +1181,17 @@ class Comment(PaginatedAPIMixin, db.Model):
         '''点赞'''
         if not self.is_liked_by(user):
             self.likers.append(user)
+            db.session.commit()
+            return True
+        return False
 
     def unliked_by(self, user):
         '''取消点赞'''
         if self.is_liked_by(user):
             self.likers.remove(user)
+            db.session.commit()
+            return True
+        return False
 
 
 class Notification(db.Model):  # 不需要分页
