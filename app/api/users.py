@@ -749,6 +749,37 @@ def get_user_messages_senders(id):
     return jsonify(data)
 
 
+@bp.route('/users/<int:id>/messages-list/', methods=['GET'])
+@token_auth.login_required
+def get_user_messages_list(id):
+    '''我和哪些用户发过私信(包括发送和接收)'''
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return error_response(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['MESSAGES_PER_PAGE'], type=int), 100)
+    '''
+    data = Message.to_collection_dict(
+        user.messages_sent.group_by(Message.recipient_id).order_by(Message.timestamp.desc()), page, per_page,
+        'api.get_user_messages_recipients', id=id)
+    
+    # 对方发给我的
+    q1 = Message.query.filter(Message.recipient_id == id)
+    # 我发给对方的
+    q2 = Message.query.filter(Message.sender_id == id)
+    # 按时间正序排列构成完整的对话时间线
+    history_messages = q1.union(q2).order_by(Message.timestamp)
+    data = Message.to_collection_dict(history_messages, page, per_page, 'api.get_user_messages_list', id=id)
+    '''
+    q1 = user.messages_received.group_by(Message.sender_id)
+    q2 = user.messages_sent.group_by(Message.recipient_id)
+    history_messages = q1.union(q2).order_by(Message.timestamp.desc())
+    data = Message.to_collection_dict(history_messages, page, per_page, 'api.get_user_messages_list', id=id)
+    return jsonify(data)
+
+
 @bp.route('/users/<int:id>/history-messages/', methods=['GET'])
 @token_auth.login_required
 def get_user_history_messages(id):
