@@ -3,7 +3,7 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import bad_request
 from app.extensions import db
-from app.models import Role
+from app.models import Role, User
 from app.utils.decorator import admin_required
 
 
@@ -130,3 +130,30 @@ def delete_role(id):
     db.session.commit()
     return jsonify({'status': 'success',
                     'message':'You have deleted role {}'.format(slug)})
+
+
+# 给用户赋予新的角色
+# 两个参数
+@bp.route('/roles/<int:id>/to-user', methods=['GET'])
+@token_auth.login_required
+@admin_required
+def give_role_to_user(id):
+    role = Role.query.get_or_404(id)
+    user_id = request.args.get('user', type=int)
+    if not user_id:
+        return bad_request('You must provide a valid user id.')
+    user = User.query.get(user_id)
+    if not user:
+        return bad_request('You must provide a valid user id.')
+    if user.role == role:
+        return jsonify({
+            'status': 'failed',
+            'message': 'User {} aready have this role'.format(user_id)
+        })
+    user.role = role
+    db.session.commit()
+    return jsonify({
+        'status': 'success',
+        'message':'You have changed the role of user {}.'.format(user_id)
+    })
+

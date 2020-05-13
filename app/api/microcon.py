@@ -132,7 +132,7 @@ def get_hot_microcons():
         data = data[:10]
     else: # TODO
         data = data[:10]
-    return jsonify(data)
+    return jsonify([item.to_dict() for item in data])
 
 
 @bp.route('/microcons/<int:id>', methods=['GET'])
