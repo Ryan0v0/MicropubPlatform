@@ -1,26 +1,20 @@
-from flask import request, jsonify, url_for, g, current_app
+from flask import request, jsonify, g
 from app.api import bp
 from app.api.auth import token_auth
-from app.api.errors import error_response, bad_request
-from app.extensions import db
-from app.models import User, Microcon, Micropub,\
-  micropubs_likes, microcons_likes, micropubs_collects
+from app.api.errors import bad_request
+from app.models import User
 from numpy import sqrt
-from sqlalchemy import text
-
-import time
-import sqlite3
-import os
 
 class CF:
-  def __init__(self, k = 5, n = 10):
+  def __init__(self, type, k = 5, n = 10):
+    self.type = type        # 0：推荐微证据， 1：推荐微猜想
     self.k = k              # 邻居个数
     self.n = n              # 推荐个数
     self.user_rating = {}   # 用户评分字典，key：用户, value: 微知识评分列表 [(微知识， 用户评分)]
     self.item_users = {}    # 微知识用户字典，key 微知识，value：评分过该微知识的用户列表
     self.neighbors = []     # 邻居列表
-    self.recommand_list = [] # 推荐列表
-    self.cost = 0.0
+    self.recommend = [] # 推荐列表
+
 
   def recommend_by_user(self, user):
     '''
@@ -29,30 +23,31 @@ class CF:
     self.build_dict()
     self.get_k_nearest_neignbors(user)
     self.get_recommend_list(user)
-    neighbors_list = [item[0] for item in self.neighbors]
-    recommend_list = [item[0] for item in self.recommand_list]
-    return neighbors_list, recommend_list
+    recommend_list = [item[0] for item in self.recommend]
+    return recommend_list
+
 
   def get_recommend_list(self, user):
     '''
       获取推荐列表
     '''
-    self.recommand_list = []
+    self.recommend = []
 
     # 建立推荐字典
     recommend_dict = {}
     for neighbor in self.neighbors:
       another_user, dist = neighbor
-      micropubs = self.user_rating[another_user]
-      for rating in micropubs:
-        micropub = rating[0]
-        recommend_dict[micropub] = recommend_dict.get(micropub, 0) + dist
+      microknos = self.user_rating[another_user]
+      for rating in microknos:
+        microkno = rating[0]
+        recommend_dict[microkno] = recommend_dict.get(microkno, 0) + dist
  
     # 建立推荐列表
     for key in recommend_dict:
-      self.recommand_list.append((key, recommend_dict[key]))
-    self.recommand_list.sort(reverse=True, key=lambda x: x[1])
-    self.recommand_list = self.recommand_list[:self.n]
+      self.recommend.append((key, recommend_dict[key]))
+    self.recommend.sort(reverse=True, key=lambda x: x[1])
+    self.recommend = self.recommend[:self.n]
+
 
   def build_dict(self):
     '''
@@ -62,28 +57,35 @@ class CF:
     self.user_rating = {}
     users = User.query.all()
     for user in users:
-      # 用户点赞了的微证据
-      user_likes = set(user.liked_micropubs.all())
 
-      # 用户收藏了的微证据
-      user_collects = set(user.collected_micropubs.all())
+      # 用户点赞了的微知识
+      if self.type == 0:
+        user_likes = set(user.liked_micropubs.all())
+      elif self.type == 1:
+        user_likes = set(user.liked_microcons.all())
+
+      # 用户收藏了的微知识
+      if self.type == 0:
+        user_collects = set(user.collected_micropubs.all())
+      elif self.type == 1:
+        user_collects = set(user.collected_micropubs.all())
 
       user_both = user_likes & user_collects
       user_likes_only = user_likes - user_both
       user_collects_only = user_collects - user_both
 
       self.user_rating[user] = []
-      for micropub in user_likes_only:
-        self.user_rating[user].append((micropub, 1))
-        self.item_users.setdefault(micropub, []).append(user)
+      for microkno in user_likes_only:
+        self.user_rating[user].append((microkno, 1))
+        self.item_users.setdefault(microkno, []).append(user)
 
-      for micropub in user_collects_only:
-        self.user_rating[user].append((micropub, 2))
-        self.item_users.setdefault(micropub, []).append(user)
+      for microkno in user_collects_only:
+        self.user_rating[user].append((microkno, 2))
+        self.item_users.setdefault(microkno, []).append(user)
 
-      for micropub in user_both:
-        self.user_rating[user].append((micropub, 3))
-        self.item_users.setdefault(micropub, []).append(user)
+      for microkno in user_both:
+        self.user_rating[user].append((microkno, 3))
+        self.item_users.setdefault(microkno, []).append(user)
 
 
   # 找到某用户的相邻用户
@@ -96,8 +98,8 @@ class CF:
     # 获取和用户评分过同一微知识的用户
     neighbors = set()
     for rating in self.user_rating[user]:
-      micropub = rating[0]
-      for another_user in self.item_users[micropub]:
+      microkno = rating[0]
+      for another_user in self.item_users[microkno]:
           if another_user != user:
             neighbors.add(another_user)
 
@@ -145,21 +147,34 @@ class CF:
 
 @bp.route('/users/<int:id>/recommend-micropubs', methods=['GET'])
 @token_auth.login_required
-def get_recommend_micropub_for_user(id):
+def get_recommend_micropubs_for_user(id):
   '''
     推荐的微证据
   '''
-  user = User.query.get_or_404(id)
   user = User.query.get_or_404(id)
   if g.current_user != user:
     return bad_request(403)
 
   k = request.args.get('k', 5, type=int)  # 邻居个数
   n = request.args.get('n', 10, type=int) # 推荐个数
-  model = CF(k=k, n=n)
-  neighbor_list, recommend_list = model.recommend_by_user(user)
-  data = {
-    'recommend_neighbors': [neighbor.to_dict() for neighbor in neighbor_list],
-    'recommend_micropubs': [item.to_dict() for item in recommend_list]
-  }
-  return jsonify(data)
+  model = CF(type=0, k=k, n=n)
+  recommend_list = model.recommend_by_user(user)
+  return jsonify([item.to_dict() for item in recommend_list])
+
+@bp.route('/users/<int:id>/recommend-microcons', methods=['GET'])
+@token_auth.login_required
+def get_recommend_microcons_for_user(id):
+  '''
+    推荐的微证据
+  '''
+  user = User.query.get_or_404(id)
+  if g.current_user != user:
+    return bad_request(403)
+
+  k = request.args.get('k', 5, type=int)  # 邻居个数
+  n = request.args.get('n', 10, type=int) # 推荐个数
+  model = CF(type=1, k=k, n=n)
+  recommend_list = model.recommend_by_user(user)
+  return jsonify([item.to_dict() for item in recommend_list])
+
+# TODO 推荐用户
