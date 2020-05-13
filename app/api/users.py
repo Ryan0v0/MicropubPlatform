@@ -406,8 +406,23 @@ def get_user_recived_micropubs_likes(id):
         for u in p.likers:
             if u != user:  # 用户自己引用自己的微知识不需要被通知
                 data = {}
-                data['_links'] = {'user_url': url_for('api.get_user', id=u.id),
-                                  'micropub_url': url_for('api.get_micropub', id=p.id)}
+                data['user'] = {
+                    '_links': {
+                        'self': url_for('api.get_user', id=u.id)
+                    },
+                    'id': u.id,
+                    'username': u.username,
+                    'name': u.name,
+                    'avatar': u.avatar(128)
+                }
+                data['micropub'] = {
+                    '_links': {
+                        'self': url_for('api.get_micropub', id=p.id),
+                    },
+                    'id': p.id,
+                    'title': p.title,
+                    'summary': p.summary,
+                }
                 # 获取引用时间
                 res = db.engine.execute(
                     "select * from micropubs_likes where user_id={} and micropub_id={}".format(u.id, p.id))
@@ -524,8 +539,25 @@ def get_user_recived_microcons_likes(id):
         for u in p.likers:
             if u != user:  # 用户自己引用自己的微知识不需要被通知
                 data = {}
-                data['_links'] = {'user_url': url_for('api.get_user', id=u.id),
-                                  'microcon_url': url_for('api.get_microcon', id=p.id)}
+                data['user'] = {
+                    '_links': {
+                        'self': url_for('api.get_user', id=u.id)
+                    },
+                    'id': u.id,
+                    'username': u.username,
+                    'name': u.name,
+                    'avatar': u.avatar(128)
+                }
+                data['microcon'] = {
+                    '_links': {
+                        'self': url_for('api.get_microcon', id=p.id),
+                        'micropubs': [url_for('api.get_micropub', id=micropub.id)
+                                      for micropub in p.micropubs]
+                    },
+                    'id': p.id,
+                    'title': p.title,
+                    'summary': p.summary,
+                }
                 # 获取引用时间
                 res = db.engine.execute(
                     "select * from microcons_likes where user_id={} and microcon_id={}".format(u.id, p.id))

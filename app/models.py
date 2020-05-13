@@ -778,8 +778,8 @@ class User(PaginatedAPIMixin, db.Model):
     def __repr__(self):
         return '<User {}>'.format(self.username)
 
-# class Micropub(PaginatedAPIMixin, db.Model):
-class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
+class Micropub(PaginatedAPIMixin, db.Model):
+# class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
     __tablename__ = 'micropubs'
     __searchable__ = [('title', True), ('summary', True), ('body', False)]
     id = db.Column(db.Integer, primary_key=True)
