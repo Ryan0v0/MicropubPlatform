@@ -86,7 +86,7 @@ def create_micropub():
 
 
 @bp.route('/micropubs/', methods=['GET'])
-@token_auth.login_required # 未登录用户也可以浏览
+@token_auth.login_required
 def get_micropubs():
     '''
     :return: 按热度返回分页微知识集合
@@ -96,13 +96,31 @@ def get_micropubs():
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Micropub.to_collection_dict(
-        Micropub.query.order_by(Micropub.views.desc()), page, per_page,
+        Micropub.query.order_by(Micropub.timestamp.desc()), page, per_page,
         'api.get_micropubs')
 
     # 是否被当前用户关注或点赞
     for item in data["items"]:
         item["is_liked"] = g.current_user.id in item["likers_id"]
         item["is_collected"] = g.current_user.id in item["collecters_id"]
+    return jsonify(data)
+
+
+@bp.route('/micropubs/hot', methods=['GET'])
+# @token_auth.login_required # 未登录用户也可以浏览
+def get_hot_micropubs():
+    '''
+    :return: 按热度返回微知识集合
+    返回最热的 10 条微证据
+    如果微证据数小于 10 条，则按 views 降序全部返回，
+    否则，如果微证据数小于 50 条，则按 views 降序返回前 10 条，
+    # TODO 否则，二分时间戳找到正好比 50 条多的时间，按 views 降序返回前 10 条
+    '''
+    data = Micropub.query.order_by(Micropub.views.desc()).all()
+    if Micropub.query.count() < 50:
+        data = data[:10]
+    else: # TODO
+        data = data[:10]
     return jsonify(data)
 
 

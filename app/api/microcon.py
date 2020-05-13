@@ -97,23 +97,41 @@ def create_microcon():
 
 
 @bp.route('/microcons/', methods=['GET'])
-@token_auth.login_required # 未登录用户也可以浏览
+@token_auth.login_required
 def get_microcons():
     '''
-    :return: 按热度返回分页微猜想集合
+    :return: 按时间降序返回分页微猜想集合
     '''
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Microcon.to_collection_dict(
-        Microcon.query.order_by(Microcon.views.desc()), page, per_page,
+        Microcon.query.order_by(Microcon.timestamp.desc()), page, per_page,
         'api.get_microcons')
 
     # 是否被当前用户关注或点赞
     for item in data["items"]:
         item["is_liked"] = g.current_user.id in item["likers_id"]
         item["is_collected"] = g.current_user.id in item["collecters_id"]
+    return jsonify(data)
+
+
+@bp.route('/microcons/hot', methods=['GET'])
+# @token_auth.login_required # 未登录用户也可以浏览
+def get_hot_microcons():
+    '''
+    :return: 按热度返回微知识集合
+    返回最热的 10 条微猜想
+    如果微猜想数小于 10 条，则按 views 降序全部返回，
+    否则，如果微猜想数小于 50 条，则按 views 降序返回前 10 条，
+    # TODO 否则，二分时间戳找到正好比 50 条多的时间，按 views 降序返回前 10 条
+    '''
+    data = Microcon.query.order_by(Microcon.views.desc()).all()
+    if Microcon.query.count() < 50:
+        data = data[:10]
+    else: # TODO
+        data = data[:10]
     return jsonify(data)
 
 
@@ -363,5 +381,6 @@ def con_microcon(id):
         'status': 'success',
         'message': 'You are coning microcon {}.'.format(id)
     })
+
 
 
