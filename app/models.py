@@ -538,7 +538,7 @@ class User(PaginatedAPIMixin, db.Model):
                 jwt.exceptions.DecodeError) as e:
             # Token过期，或被人修改，那么签名验证也会失败
             return None
-        return User.query.get(payload.get('user_id'))
+        return User.query.get(payload.get('user_id')) #
 
     def is_following(self, user):
         '''判断当前用户是否已经关注了 user 这个用户对象，如果关注了，下面表达式左边是1，否则是0'''
@@ -695,6 +695,7 @@ class User(PaginatedAPIMixin, db.Model):
         '''生成确认账户的 JWT'''
         now = datetime.utcnow()
         payload = {
+            'user_id': self.id,
             'confirm': self.id,
             'exp': now + timedelta(seconds=expires_in),
             'iat': now
