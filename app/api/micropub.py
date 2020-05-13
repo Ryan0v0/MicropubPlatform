@@ -116,13 +116,22 @@ def get_hot_micropubs():
     否则，如果微证据数小于 50 条，则按 views 降序返回前 10 条，
     # TODO 否则，二分时间戳找到正好比 50 条多的时间，按 views 降序返回前 10 条
     '''
+    '''
     data = Micropub.query.order_by(Micropub.views.desc()).all()
     if Micropub.query.count() < 50:
         data = data[:10]
     else: # TODO
         data = data[:10]
     return jsonify([item.to_dict() for item in data])
-
+    '''
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+    data = Micropub.to_collection_dict(
+        Micropub.query.order_by(Micropub.views.desc()), page, per_page,
+        'api.get_micropubs')
+    return jsonify(data)
 
 @bp.route('/micropubs/<int:id>', methods=['GET'])
 @token_auth.login_required # 未登录用户不能查看微证据详情

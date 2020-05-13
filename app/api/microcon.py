@@ -127,12 +127,23 @@ def get_hot_microcons():
     否则，如果微猜想数小于 50 条，则按 views 降序返回前 10 条，
     # TODO 否则，二分时间戳找到正好比 50 条多的时间，按 views 降序返回前 10 条
     '''
+    '''
     data = Microcon.query.order_by(Microcon.views.desc()).all()
     if Microcon.query.count() < 50:
         data = data[:10]
     else: # TODO
         data = data[:10]
     return jsonify([item.to_dict() for item in data])
+    '''
+
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+    data = Microcon.to_collection_dict(
+        Microcon.query.order_by(Microcon.views.desc()), page, per_page,
+        'api.get_microcons')
+    return jsonify(data)
 
 
 @bp.route('/microcons/<int:id>', methods=['GET'])
