@@ -142,7 +142,7 @@ def get_hot_microcons():
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Microcon.to_collection_dict(
         Microcon.query.order_by(Microcon.views.desc()), page, per_page,
-        'api.get_microcons')
+        'api.get_hot_microcons')
     return jsonify(data)
 
 

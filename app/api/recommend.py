@@ -1,8 +1,8 @@
-from flask import request, jsonify, g
+from flask import request, jsonify, g, current_app
 from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import bad_request
-from app.models import User
+from app.models import User, Micropub, Microcon
 from numpy import sqrt
 
 class CF:
@@ -159,13 +159,31 @@ def get_recommend_micropubs_for_user(id):
   n = request.args.get('n', 10, type=int) # 推荐个数
   model = CF(type=0, k=k, n=n)
   recommend_list = model.recommend_by_user(user)
-  return jsonify([item.to_dict() for item in recommend_list])
+
+  # 用热点补齐 n 个
+  if len(recommend_list) < n:
+    micropubs = Micropub.query.order_by(Micropub.views.desc()).all()
+    for micropub in micropubs:
+      if micropub not in recommend_list:
+        recommend_list.append(micropub)
+        if len(recommend_list) == n:
+          break
+  micropubs_ids = [micropub.id for micropub in recommend_list]
+
+  page = request.args.get('page', 1, type=int)
+  per_page = min(
+    request.args.get(
+      'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+  data = Micropub.to_collection_dict(
+    Micropub.query.filter(Micropub.id.in_(micropubs_ids)), page, per_page,
+    'api.get_recommend_micropubs_for_user', id=id)
+  return jsonify(data)
 
 @bp.route('/users/<int:id>/recommend-microcons', methods=['GET'])
 @token_auth.login_required
 def get_recommend_microcons_for_user(id):
   '''
-    推荐的微证据
+    推荐的微猜想
   '''
   user = User.query.get_or_404(id)
   if g.current_user != user:
@@ -175,6 +193,24 @@ def get_recommend_microcons_for_user(id):
   n = request.args.get('n', 10, type=int) # 推荐个数
   model = CF(type=1, k=k, n=n)
   recommend_list = model.recommend_by_user(user)
-  return jsonify([item.to_dict() for item in recommend_list])
+
+  # 用热点补齐 n 个
+  if len(recommend_list) < n:
+    microcons = Microcon.query.order_by(Microcon.views.desc()).all()
+    for microcon in microcons:
+      if microcon not in recommend_list:
+        recommend_list.append(microcon)
+        if len(recommend_list) == n:
+          break
+  microcons_ids = [microcon.id for microcon in recommend_list]
+
+  page = request.args.get('page', 1, type=int)
+  per_page = min(
+    request.args.get(
+      'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+  data = Microcon.to_collection_dict(
+    Microcon.query.filter(Microcon.id.in_(microcons_ids)), page, per_page,
+    'api.get_recommend_microcons_for_user', id=id)
+  return jsonify(data)
 
 # TODO 推荐用户

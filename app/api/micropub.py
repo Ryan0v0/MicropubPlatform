@@ -130,7 +130,7 @@ def get_hot_micropubs():
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Micropub.to_collection_dict(
         Micropub.query.order_by(Micropub.views.desc()), page, per_page,
-        'api.get_micropubs')
+        'api.get_hot_micropubs')
     return jsonify(data)
 
 @bp.route('/micropubs/<int:id>', methods=['GET'])
