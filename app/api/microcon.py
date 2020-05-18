@@ -363,7 +363,7 @@ def get_microcons_by_tags():
     return jsonify(data)
 
 # 通过微猜想
-@bp.route('/microcons/<int:id>/pro', methods=['GET'])
+@bp.route('/microcons/<int:id>/pro', methods=['POST'])
 @token_auth.login_required
 def pro_microcon(id):
     microcon = Microcon.query.get_or_404(id)
@@ -375,7 +375,13 @@ def pro_microcon(id):
             'message': 'This micropub is already in {} state'.
                 format('proed' if microcon.status == 1 else 'coned')
         })
-    if not microcon.proed_by(g.current_user):
+    data = request.get_json()
+    if 'reason' not in data or not data.get('reason').strip():
+        return bad_request('Please provide the reason of proing microcon {}'.format(id))
+    elif len(data.get('reason').strip()) > 255:
+        return bad_request('The maximum length of proing reason is 255.')
+
+    if not microcon.proed_by(g.current_user, data.get('reason').strip()):
         return jsonify({
             'status': 'failed',
             'message': 'You have aready judged microcon {}.'.format(id)
@@ -389,7 +395,7 @@ def pro_microcon(id):
     })
 
 # 否决微猜想
-@bp.route('/microcons/<int:id>/con', methods=['GET'])
+@bp.route('/microcons/<int:id>/con', methods=['POST'])
 @token_auth.login_required
 def con_microcon(id):
     microcon = Microcon.query.get_or_404(id)
@@ -401,7 +407,14 @@ def con_microcon(id):
             'message': 'This micropub is already in {} state'.
                 format('proed' if microcon.status == 1 else 'coned')
         })
-    if not microcon.coned_by(g.current_user):
+
+    data = request.get_json()
+    if 'reason' not in data or not data.get('reason').strip():
+        return bad_request('Please provide the reason of coning microcon {}'.format(id))
+    elif len(data.get('reason').strip()) > 255:
+        return bad_request('The maximum length of coning reason is 255.')
+
+    if not microcon.coned_by(g.current_user, data.get('reason').strip()):
         return jsonify({
             'status': 'failed',
             'message': 'You have aready judged microcon {}.'.format(id)

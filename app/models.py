@@ -168,7 +168,8 @@ microcons_pros = db.Table(
     'microcons_pors',
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow),
+    db.Column('reason', db.String(255))
 )
 
 # 否决微猜想
@@ -176,7 +177,8 @@ microcons_cons = db.Table(
     'microcons_cons',
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow),
+    db.Column('reason', db.String(255))
 )
 
 
@@ -958,7 +960,9 @@ class Microcon(PaginatedAPIMixin, db.Model):
             'timestamp': self.timestamp,
             'status': self.status,
             'pros_num': self.pros.count(),
+            'pros': [self.pros_to_dict(item) for item in self.pros],
             'cons_num': self.cons.count(),
+            'cons': [self.cons_to_dict(item) for item in self.cons],
             'views': self.views,
             'likes': self.likers.count(),
             'likers_id': [user.id for user in self.likers],
@@ -972,6 +976,28 @@ class Microcon(PaginatedAPIMixin, db.Model):
                 'micropubs_urls': [url_for('api.get_micropub', id=micropub.id)
                                    for micropub in self.micropubs]
             }
+        }
+        return data
+
+    def pros_to_dict(self, pro):
+        item = db.engine.execute("select * from microcons_pors where microcon_id=? and user_id=?",
+                                 [self.id, pro.id])
+        item = list(item)[0]
+        data = {
+            'user_id': item[1],
+            'timestamp': item[2],
+            'reason': item[3]
+        }
+        return data
+
+    def cons_to_dict(self, con):
+        item = db.engine.execute("select * from microcons_cons where microcon_id=? and user_id=?",
+                                 [self.id, con.id])
+        item = list(item)[0]
+        data = {
+            'user_id': item[1],
+            'timestamp': item[2],
+            'reason': item[3]
         }
         return data
 
@@ -1010,7 +1036,6 @@ class Microcon(PaginatedAPIMixin, db.Model):
                 self.updata_tags(data['tags'])
         if 'micropubs' in data:  # 修改微猜想引用的
             if add_new:
-                print(data['micropubs'])
                 self.add_micropubs(data['micropubs'])
             else:
                 self.update_micropubs(data['micropubs'])
@@ -1065,17 +1090,21 @@ class Microcon(PaginatedAPIMixin, db.Model):
     def is_judged_by(self, user):
         return (user in self.pros) or (user in self.cons)
 
-    def proed_by(self, user):
+    def proed_by(self, user, reason):
         if not self.is_judged_by(user):
             self.pros.append(user)
             db.session.commit()
+            db.engine.execute("update microcons_pors set reason=? "
+                              "where microcon_id=? and user_id=?", [reason, self.id, user.id])
             return True
         return False
 
-    def coned_by(self, user):
+    def coned_by(self, user, reason):
         if not self.is_judged_by(user):
             self.cons.append(user)
             db.session.commit()
+            db.engine.execute("update microcons_cons set reason=? "
+                              "where microcon_id=? and user_id=?", [reason, self.id, user.id])
             return True
         return False
 

@@ -196,7 +196,8 @@ def get_recommend_microcons_for_user(id):
 
   # 用热点补齐 n 个
   if len(recommend_list) < n:
-    microcons = Microcon.query.order_by(Microcon.views.desc()).all()
+    microcons = not Microcon.query.filter(Microcon.status == 1).\
+      order_by(Microcon.views.desc()).all()
     for microcon in microcons:
       if microcon not in recommend_list:
         recommend_list.append(microcon)
