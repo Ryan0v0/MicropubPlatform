@@ -214,7 +214,7 @@ class Permission:
     FOLLOW: 0b00000001，转换为十六进制为 0x01
     COMMENT: 0b00000010，转换为十六进制为 0x02
     WRITE: 0b00000100，转换为十六进制为 0x04
-    ...
+    SPONSOR: 0b00001000, 转换为十六进制为 0x08
     ADMIN: 0b10000000，转换为十六进制为 0x80
 
     中间还预留了第 4、5、6、7 共4位二进制位，以备后续增加操作权限
@@ -227,61 +227,8 @@ class Permission:
     WRITE = 0x04
     # 管理网站的权限(对应管理员角色)
     ADMIN = 0x80
-
-'''
-class Comment(db.Model):
-    __tablename__ = 'comments'
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(255), index=True)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id'))
-    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id'))
-
-    def __repr__(self):
-        return '<Comment {}>'.format(self.content)
-
-    def to_dict(self):
-        data = {
-            'id': self.id,
-            'content': self.content,
-            'timestamp': self.timestamp,
-            'user_id': self.user_id,
-            'micropub_id': self.micropub_id,
-            '_links': {
-                'self': url_for('api.get_comment', id=self.id),
-                'user_url': url_for('api.get_user', id=self.user_id),
-                'micropub_url': url_for('api.get_micropub', id=self.micropub_id),
-            }
-        }
-        return data
-
-    def from_dict(self, data):
-        for field in ['content', 'timestamp']:
-            if field in data:
-                setattr(self, field, data[field])
-'''
-
-
-class Permission:
-    '''权限认证中的各种操作，对应二进制的位，比如
-    FOLLOW: 0b00000001，转换为十六进制为 0x01
-    COMMENT: 0b00000010，转换为十六进制为 0x02
-    WRITE: 0b00000100，转换为十六进制为 0x04
-    ...
-    ADMIN: 0b10000000，转换为十六进制为 0x80
-
-    中间还预留了第 4、5、6、7 共4位二进制位，以备后续增加操作权限
-    '''
-    # 关注其它用户的权限
-    FOLLOW = 0x01
-    # 发表评论、评论点赞与踩的权限
-    COMMENT = 0x02
-    # 撰写微知识的权限
-    WRITE = 0x04
-    # 管理网站的权限(对应管理员角色)
-    ADMIN = 0x80
-
+    # 发起微话题的权限(对应赞助商角色)
+    SPONSOR = 0x08
 
 class Role(PaginatedAPIMixin, db.Model):
     __tablename__ = 'roles'
@@ -305,7 +252,7 @@ class Role(PaginatedAPIMixin, db.Model):
         reader:        0b0000 0011 (0x03) 读者，可以关注别人、评论与点赞，但不能发表微知识
         author:        0b0000 0111 (0x07) 作者，可以关注别人、评论与点赞，发表微知识
         administrator: 0b1000 0111 (0x87) 超级管理员，拥有全部权限
-
+        sponsor:       0b0000 1011 (0x0B) 赞助商，可以关注别人、评论与点赞，但不能发表微知识，另外可以发起微话题
         以后如果要想添加新角色，或者修改角色的权限，修改 roles 数组，再运行函数即可
         '''
         roles = {
@@ -313,6 +260,7 @@ class Role(PaginatedAPIMixin, db.Model):
             'reader': ('读者', (Permission.FOLLOW, Permission.COMMENT)),
             'author': ('作者', (Permission.FOLLOW, Permission.COMMENT, Permission.WRITE)),
             'administrator': ('管理员', (Permission.FOLLOW, Permission.COMMENT, Permission.WRITE, Permission.ADMIN)),
+            'sponsor': ('赞助商', (Permission.FOLLOW, Permission.COMMENT, Permission.SPONSOR))
         }
         default_role = 'reader'
         for r in roles:  # r 是字典的键
@@ -343,7 +291,7 @@ class Role(PaginatedAPIMixin, db.Model):
     def get_permissions(self):
         '''获取角色的具体操作权限列表'''
         p = [(Permission.FOLLOW, 'follow'), (Permission.COMMENT, 'comment'), (Permission.WRITE, 'write'),
-             (Permission.ADMIN, 'admin')]
+             (Permission.ADMIN, 'admin'), (Permission.SPONSOR, 'sponsor')]
         # 过滤掉没有权限，注意不能用 for 循环，因为遍历列表时删除元素可能结果并不是你想要的，参考: https://segmentfault.com/a/1190000007214571
         new_p = filter(lambda x: self.has_permission(x[0]), p)
         return ','.join([x[1] for x in new_p])  # 用逗号拼接成str

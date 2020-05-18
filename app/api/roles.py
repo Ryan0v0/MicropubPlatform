@@ -14,7 +14,8 @@ def get_perms():
         {'name': 'FOLLOW', 'dec': 1},
         {'name': 'COMMENT', 'dec': 2},
         {'name': 'WRITE', 'dec': 4},
-        {'name': 'ADMIN', 'dec': 128}
+        {'name': 'ADMIN', 'dec': 128},
+        {'name': 'SPONSOR', 'dec': 256}
     ]
     return jsonify(data)
 
