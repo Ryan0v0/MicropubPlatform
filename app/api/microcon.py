@@ -105,12 +105,27 @@ def get_microcons():
     '''
     :return: 按时间降序返回分页微猜想集合
     '''
+    status =request.args.get('status', type=str)
+    if not status:
+        return bad_request('Please provide the status of microcons.')
+    status = status.split(',')
+    for item in status:
+        if item.strip() not in ['0', '1', '-1']:
+            return bad_request('Please provide valid status of microcons, 0, 1 or -1.')
+
+    q_list = []
+    for item in status:
+        q_list.append(Microcon.query.filter(Microcon.status==int(item)))
+    final_query = q_list[0]
+    for i in range(1, len(q_list)):
+        final_query = final_query.union(q_list[i])
+
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Microcon.to_collection_dict(
-        Microcon.query.order_by(Microcon.timestamp.desc()), page, per_page,
+        final_query.order_by(Microcon.timestamp.desc()), page, per_page,
         'api.get_microcons')
 
     # 是否被当前用户关注或点赞
@@ -119,12 +134,11 @@ def get_microcons():
         item["is_collected"] = g.current_user.id in item["collecters_id"]
     return jsonify(data)
 
-
 @bp.route('/microcons/hot', methods=['GET'])
 # @token_auth.login_required # 未登录用户也可以浏览
 def get_hot_microcons():
     '''
-    :return: 按热度返回微知识集合
+    :return: 按热度返回【通过的】微知识集合
     返回最热的 10 条微猜想
     如果微猜想数小于 10 条，则按 views 降序全部返回，
     否则，如果微猜想数小于 50 条，则按 views 降序返回前 10 条，
@@ -144,7 +158,7 @@ def get_hot_microcons():
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Microcon.to_collection_dict(
-        Microcon.query.order_by(Microcon.views.desc()), page, per_page,
+        Microcon.query.filter(Microcon.status==1).order_by(Microcon.views.desc()), page, per_page,
         'api.get_hot_microcons')
     return jsonify(data)
 
@@ -247,6 +261,8 @@ def delete_microcon(id):
 @token_auth.login_required
 def like_microcon(id):
     microcon = Microcon.query.get_or_404(id)
+    if microcon.status == 0:
+        return bad_request('Microcon {} is in judging status, you can not like it now.'.format(id))
 
     if not microcon.liked_by(g.current_user):
         return jsonify({
@@ -290,6 +306,8 @@ def unlike_microcon(id):
 @token_auth.login_required
 def collect_microcon(id):
     microcon = Microcon.query.get_or_404(id)
+    if microcon.status == 0:
+        return bad_request('Microcon {} is in judging status, you can not collect it now.'.format(id))
 
     if not microcon.collected_by(g.current_user):
         return jsonify({
@@ -321,7 +339,7 @@ def uncollect_microcon(id):
     })
 
 
-# 查找具有某些 tag 中的某一个或几个的微猜想
+# 查找具有某些 tag 中的某一个或几个的【通过的】微猜想
 @bp.route('/microcons/search-by-tags/', methods=['POST'])
 @token_auth.login_required
 def get_microcons_by_tags():
@@ -338,7 +356,7 @@ def get_microcons_by_tags():
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Microcon.to_collection_dict(
-        Microcon.query.join(Tag).filter(Tag.content.in_(tags_contents)).
+        Microcon.query.filter(Microcon.status==1).join(Tag).filter(Tag.content.in_(tags_contents)).
             order_by(Microcon.timestamp.desc()),
         page, per_page, 'api.get_microcons_by_tags')
 

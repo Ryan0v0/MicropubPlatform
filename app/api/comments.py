@@ -27,6 +27,9 @@ def create_comment():
         microknow = Micropub.query.get_or_404(int(data.get('micropub_id')))
     else:
         microknow = Microcon.query.get_or_404(int(data.get('microcon_id')))
+        if microknow.status == 0:
+            return bad_request('Microcon {} is in judging status,'
+                               ' you can not comment to it now.'.format(microknow.id))
     comment = Comment()
     comment.from_dict(data)
     comment.author = g.current_user
