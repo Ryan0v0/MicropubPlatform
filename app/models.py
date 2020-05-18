@@ -7,7 +7,7 @@ from time import time
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import url_for, current_app
 from app.extensions import db
-from app.utils.elasticsearch import add_to_index, remove_from_index, query_index, es_highlight
+from app.utils.search import add_to_index, remove_from_index, query_index, es_highlight
 from sqlalchemy import text
 
 
