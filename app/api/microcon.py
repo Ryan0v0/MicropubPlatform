@@ -50,6 +50,9 @@ def validation_check(data):
                 message['micropubs'] = 'The cited micropub does not exist.'
             else:
                 micropubs.append(m)
+        if micropubs[0] == micropubs[1]:
+            message['micropubs'] = 'You can not cite the same micropub twice.'
+
         if not message:
             data['micropubs'] = micropubs
 

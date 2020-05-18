@@ -29,6 +29,8 @@ def create_user():
         message['email'] = _('Please provide a valid email address.')
     if 'password' not in data or not data.get('password', None).strip():
         message['password'] = _('Please provide a valid password.')
+    elif len(data.get('password').strip()) < 6:
+        message['password'] = _('Please provide a password more than 6 characters.')
 
     if User.query.filter_by(username=data.get('username', None)).first():
         message['username'] = _('Please use a different username.')
@@ -1116,6 +1118,9 @@ def reset_password(token):
         return bad_request(_('You must micropub JSON data.'))
     if 'password' not in data or not data.get('password', None).strip():
         return bad_request(_('Please provide a valid password.'))
+    if len(data.get('password')) < 6:
+        return bad_request(_('Please provide a password more than 6 characters.'))
+
     user = User.verify_reset_password_jwt(token)
     if not user:
         return bad_request(_('The reset password link is invalid or has expired.'))
