@@ -3,33 +3,11 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import error_response, bad_request
 from app.extensions import db
-from app.models import Permission, Micropub, Comment, Microcon
+from app.models import Permission, Micropub, Comment, Microcon, Cradle
 from app.utils.decorator import permission_required
 
 
-@bp.route('/comments/', methods=['POST'])
-@token_auth.login_required
-@permission_required(Permission.COMMENT)
-def create_comment():
-    '''在某篇博客微知识下面发表新评论'''
-    data = request.get_json()
-    if not data:
-        return bad_request('You must micropub JSON data.')
-    if 'body' not in data or not data.get('body').strip():
-        return bad_request('Body is required.')
-
-    is_micropub = 'micropub_id' in data and data.get('micropub_id').strip()
-    is_microcon = 'microcon_id' in data and data.get('microcon_id').strip()
-    if (is_micropub and is_microcon) or not (is_micropub or is_microcon):
-        return bad_request('Microcon or micropub is required.')
-
-    if is_micropub:
-        microknow = Micropub.query.get_or_404(int(data.get('micropub_id')))
-    else:
-        microknow = Microcon.query.get_or_404(int(data.get('microcon_id')))
-        if microknow.status == 0:
-            return bad_request('Microcon {} is in judging status,'
-                               ' you can not comment to it now.'.format(microknow.id))
+def comment_for_microkno(is_micropub, data, microknow):
     comment = Comment()
     comment.from_dict(data)
     comment.author = g.current_user
@@ -61,6 +39,55 @@ def create_comment():
     response.headers['Location'] = url_for('api.get_comment', id=comment.id)
     return response
 
+
+def comment_for_cradle(data, cradle):
+    comment = Comment()
+    comment.from_dict(data)
+    comment.author = g.current_user
+    comment.cradle = cradle
+
+    db.session.add(comment)
+    db.session.commit()
+    response = jsonify(comment.to_dict())
+    response.status_code = 201
+    response.headers['Location'] = url_for('api.get_comment', id=comment.id)
+    return response
+
+
+@bp.route('/comments/', methods=['POST'])
+@token_auth.login_required
+@permission_required(Permission.COMMENT)
+def create_comment():
+    '''在某篇博客微知识下面发表新评论'''
+    data = request.get_json()
+    if not data:
+        return bad_request('You must micropub JSON data.')
+    if 'body' not in data or not data.get('body').strip():
+        return bad_request('Body is required.')
+
+    is_micropub = bool(('micropub_id' in data) and data.get('micropub_id').strip())
+    is_microcon = bool(('microcon_id' in data) and data.get('microcon_id').strip())
+    is_cradle = bool(('cradle_id' in data) and data.get('cradle_id').strip())
+    print(is_micropub, is_microcon, is_cradle)
+    count = is_micropub + is_microcon + is_cradle
+
+    if count != 1:
+        return bad_request('One of micropub, microcon or cradle id required.')
+
+    if is_cradle:
+        cradle = Cradle.query.get_or_404(int(data.get('cradle_id')))
+        return comment_for_cradle(data, cradle)
+    else:
+        if is_micropub:
+            microknow = Micropub.query.get_or_404(int(data.get('micropub_id')))
+        else:
+            microknow = Microcon.query.get_or_404(int(data.get('microcon_id')))
+            if microknow.status == 0:
+                return bad_request('Microcon {} is in judging status,'
+                                   ' you can not comment to it now.'.format(microknow.id))
+        return comment_for_microkno(is_micropub, data, microknow)
+
+
 # 创建多级评论
 
 @bp.route('/comments/', methods=['GET'])
@@ -85,50 +112,10 @@ def get_comment(id):
     return jsonify(comment.to_dict())
 
 
-@bp.route('/comments/<int:id>', methods=['PUT'])
-@token_auth.login_required
-def update_comment(id):
-    '''修改单个评论'''
-    # 好像不太合理，
-    # 比如本来在给 micropub_1 评论，现在把同样的评论改成给 micropub_2?
-    # 只修改评论内容也有些鸡肋，干脆删了
-    comment = Comment.query.get_or_404(id)
-    data = request.get_json()
-    if not data:
-        return bad_request('You must micropub JSON data.')
-
-    # TODO
-    # if 'body' not in data or not data.get('body'):
-    #     return bad_request('Body is required.')
-
-    is_micropub = 'micropub_id' not in data or not data.get('micropub_id')
-    is_microcon = 'microcon_id' not in data or not data.get('microcon_id')
-    if is_micropub and is_microcon:
-        return bad_request('Microcon or micropub is required.')
-    if is_micropub and not Micropub.query.get(int(data.get('micropub_id'))):
-        return bad_request('The commented micropub does not exist')
-    elif is_microcon and not Microcon.query.get(int(data.get('microcon_id'))):
-        return bad_request('The commented microcon does not exist')
-
-    if is_micropub \
-            and g.current_user != comment.author \
-            and g.current_user != comment.micropub.author \
-            and not g.current_user.can(Permission.ADMIN):
-        return error_response(403)
-
-    if is_microcon \
-        and g.current_user != comment.author \
-            and g.current_user != comment.microcon.author \
-            and not g.current_user.can(Permission.ADMIN):
-        return error_response(403)
-
-    comment.from_dict(data)
-    db.session.commit()
-    return jsonify(comment.to_dict())
-
-
 def delete_comment_of_micropub(comment):
-    if g.current_user != comment.author and g.current_user != comment.micropub.author and not g.current_user.can(
+    if g.current_user != comment.author \
+            and g.current_user != comment.micropub.author \
+            and not g.current_user.can(
             Permission.ADMIN):
         return False
         # 删除评论时:
@@ -173,6 +160,22 @@ def delete_comment_of_microcon(comment):
     db.session.commit()  # 更新数据库，写入新通知
     return True
 
+
+def delete_comment_of_cradle(comment):
+    '''
+    删除对孵化器的评论
+    :param comment: 评论
+    :return: 是否删除成功
+    '''
+    if g.current_user != comment.author \
+            and g.currnet_user != comment.cradle.sponsor \
+            and not g.current_user.can(Permission.ADMIN):
+        return False
+    db.session.delete(comment)
+    db.session.commit()
+    return True
+
+
 @bp.route('/comments/<int:id>', methods=['DELETE'])
 @token_auth.login_required
 def delete_comment(id):
@@ -184,6 +187,8 @@ def delete_comment(id):
     if comment.microcon and not delete_comment_of_microcon(comment):
         return error_response(403)
 
+    if comment.cradle and not delete_comment_of_cradle(comment):
+        return error_response(403)
     return jsonify({
         'status': 'success',
         'message': 'You have deleted comment {}'.format(id)

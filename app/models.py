@@ -181,7 +181,6 @@ microcons_cons = db.Table(
     db.Column('reason', db.String(255))
 )
 
-
 # 标签如何新建？？
 @whooshee.register_model('content')
 class Tag(db.Model):
@@ -390,6 +389,14 @@ class User(PaginatedAPIMixin, db.Model):
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
     # 用户的RQ后台任务
     tasks = db.relationship('Task', backref='user', lazy='dynamic')
+
+    # 用户的孵化器列表，一对多，一方
+    cradles = db.relationship('Cradle', backref='sponsor',
+                              lazy='dynamic', cascade='all, delete-orphan')
+    # 用户在孵化器中引用的微知识列表，一对多，一方
+    microknos_cites = db.relationship('MicroknosCites', backref='user',
+                              lazy='dynamic', cascade='all, delete-orphan')
+
 
     def set_password(self, password):
         '''设置用户密码，保存为 Hash 值'''
@@ -752,6 +759,9 @@ class Micropub(PaginatedAPIMixin, db.Model):
     # 评论
     comments = db.relationship('Comment', backref='micropub', lazy='dynamic',
                                cascade='all, delete-orphan')
+    # 用户在孵化器中引用的微知识，一对多，一方
+    microknos_cites = db.relationship('MicroknosCites', backref='micropub',
+                                      lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
@@ -895,6 +905,9 @@ class Microcon(PaginatedAPIMixin, db.Model):
                                cascade='all, delete-orphan')
     # 微猜想评审状态，0：待评审；1：已通过；-1 已否决
     status = db.Column(db.Integer, default=0)
+    # 用户在孵化器中引用的微知识，一对多，一方
+    microknos_cites = db.relationship('MicroknosCites', backref='microcon',
+                                      lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
@@ -1081,6 +1094,8 @@ class Comment(PaginatedAPIMixin, db.Model):
     # 级联删除的 cascade 必须定义在 "多" 的那一侧，所以不能这样定义: parent = db.relationship('Comment', backref='children', remote_side=[id], cascade='all, delete-orphan')
     parent = db.relationship('Comment', backref=db.backref('children', cascade='all, delete-orphan'), remote_side=[id])
 
+    cradle_id = db.Column(db.Integer, db.ForeignKey('cradles.id'))
+
     def __repr__(self):
         return '<Comment {}>'.format(self.id)
 
@@ -1133,11 +1148,23 @@ class Comment(PaginatedAPIMixin, db.Model):
                 'title': self.microcon.title,
                 'author_id': self.microcon.author.id
             } if self.microcon else None,
+            'cradle': {
+                'id': self.cradle.id,
+                'title': self.cradle.title,
+                'body': self.cradle.body,
+                'sponsor': {
+                    'id': self.cradle.sponsor.id,
+                    'username': self.cradle.sponsor.username,
+                    'name': self.cradle.sponsor.name,
+                    'avatar': self.cradle.sponsor.avatar(128)
+                }
+            } if self.cradle else None,
             'parent_id': self.parent.id if self.parent else None,
             # 'children': [child.to_dict() for child in self.children] if self.children else None,
             '_links': {
                 'self': url_for('api.get_comment', id=self.id),
                 'author_url': url_for('api.get_user', id=self.author_id),
+                'cradle_url': url_for('api.get_cradle', id=self.cradle_id) if self.cradle else None,
                 'micropub_url': url_for('api.get_micropub', id=self.micropub_id) if self.micropub else None,
                 'microcon_url': url_for('api.get_microcon', id=self.microcon_id) if self.microcon else None,
                 'parent_url': url_for('api.get_comment', id=self.parent.id) if self.parent else None,
@@ -1282,3 +1309,146 @@ class Task(PaginatedAPIMixin, db.Model):
 
     def __repr__(self):
         return '<Task {}>'.format(self.id)
+
+
+class DDL(PaginatedAPIMixin, db.Model):
+    __tablename__ = 'ddls'
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow) # 创建或最后一次修改时间
+    deadline = db.Column(db.DateTime, index=True)                           # 截至时间
+    cradle_id = db.Column(db.Integer, db.ForeignKey('cradles.id')) # 一对多，多方
+    passed = db.Column(db.Boolean, default=False)  # 是否截止
+
+    def __repr__(self):
+        return '<DDL {}>'.format(self.id)
+
+    def to_dict(self):
+        self.passed = self.deadline < datetime.utcnow() # TODO
+        data = {
+            'id': self.id,
+            'timestamp': self.timestamp,
+            'deanline': self.deadline,
+            'body': self.body,
+            'passed': self.passed,
+            'cradle': {
+                'id': self.cradle.id,
+                'sponsor': self.cradle.sponsor_id,
+                'title': self.cradle.title
+            },
+            '_links': {
+                'self': url_for('api.get_ddl', id=self.id),
+                'cradle_url': url_for('api.get_cradle', id=self.cradle_id)
+            }
+        }
+        return data
+
+    def from_dict(self, data):
+        for field in ['body', 'timestamp', 'deadline']:
+            if field in data:
+                setattr(self, field, data[field])
+
+
+# 孵化器中的微知识引用
+class MicroknosCites(PaginatedAPIMixin, db.Model):
+    __tablename__ = 'microknos_cites'
+    id = db.Column(db.Integer, primary_key=True)
+    micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id')) # 一对多，多方
+    microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id')) # 一对多，多方
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))         # 一对多，多方
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    cradle_id = db.Column(db.Integer, db.ForeignKey('cradles.id'))     # 一对多，多方
+    reason = db.Column(db.TEXT)
+
+    def __repr__(self):
+        return '<MicroknosCites {}>'.format(self.id)
+
+    def to_dict(self):
+        data = {
+            '_links':{
+                'self': url_for('api.get_microkno_cite', id=self.id),
+                'micropub_url': url_for('api.get_micropub', id=self.micropub_id) if self.micropub else None,
+                'microcon_url': url_for('api.get_microcon', id=self.microcon_id) if self.microcon else None,
+                'user_url': url_for('api.get_user', id=self.user_id),
+                'cradle_url': url_for('api.get_cradle', id=self.cradle_id),
+            },
+            'micropub': self.micropub.to_dict() if self.micropub else None,
+            'microcon': self.microcon.to_dict() if self.microcon else None,
+            'user': {
+                'id': self.user.id,
+                'username': self.user.username,
+                'name': self.user.name,
+                'avatar': self.user.avatar(128)
+            },
+            'cradle': {
+                'id': self.cradle.id,
+                'title': self.cradle.title,
+                'body': self.cradle.body,
+                'sponsor': {
+                    'id': self.cradle.sponsor.id,
+                    'username': self.cradle.sponsor.username,
+                    'name': self.cradle.sponsor.name,
+                    'avatar': self.cradle.sponsor.avatar(128)
+                },
+            },
+            'timestamp': self.timestamp,
+            'reason': self.reason,
+        }
+        return data
+
+    def from_dict(self, data):
+        for field in ['reason', 'timestamp']:
+            if field in data:
+                setattr(self, field, data[field])
+
+
+class Cradle(PaginatedAPIMixin, db.Model):
+    __tablename__ = 'cradles'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.TEXT)
+    body = db.Column(db.TEXT)
+    sponsor_id = db.Column(db.Integer, db.ForeignKey('users.id'))                   # 一对多，多方
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    comments = db.relationship('Comment', backref='cradle', lazy='dynamic',         # 一对多，一方
+                               cascade='all, delete-orphan')
+    microknos = db.relationship('MicroknosCites', backref='cradle', lazy='dynamic', # 一对多，一方
+                               cascade='all, delete-orphan')
+    ddls = db.relationship('DDL', backref='cradle', lazy='dynamic',                 # 一对多，一方
+                               cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return '<Cradle {}>'.format(self.id)
+
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'title': self.title,
+            'body': self.body,
+            'sponsor': {
+                'id': self.sponsor.id,
+                'username': self.sponsor.username,
+                'name': self.sponsor.name,
+                'avatar': self.sponsor.avatar(128)
+            },
+            'timestamp': self.timestamp,
+            'ddls': [item.to_dict() for item in self.ddls],
+            'comments': [item.to_dict() for item in self.comments],
+            'microknos': [item.to_dict() for item in self.microknos],
+            '_links':{
+                'self': url_for('api.get_cradle', id=self.id),
+                'sponsor_url': url_for('api.get_user', id=self.sponsor_id),
+                'ddls_url': url_for('api.get_ddls_of_cradle', id=self.id),
+                'comments_url': url_for('api.get_comments_of_cradle', id=self.id),
+                'microknos_url': url_for('api.get_microknos_cites_of_cradle', id=self.id),
+            }
+        }
+        return data
+
+    def from_dict(self, data):
+        for field in ['body', 'title', 'timestamp']:
+            if field in data:
+                setattr(self, field, data[field])
+
+    def add_ddl(self, ddl):
+        self.ddls.append(ddl)
+        # TODO 向关注该孵化器的人发提醒

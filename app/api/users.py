@@ -8,7 +8,7 @@ from app.api.auth import token_auth
 from app.api.errors import bad_request, error_response
 from app.extensions import db
 from app.models import Permission, comments_likes, User, Micropub, Notification, Comment,Message,\
-    micropubs_likes, micropubs_collects, Microcon, microcons_likes, microcons_collects, Task
+    micropubs_likes, micropubs_collects, Microcon, microcons_likes, microcons_collects, Task, Cradle
 from app.utils.email import send_email
 from app.utils.decorator import permission_required
 from sqlalchemy import text, desc, or_
@@ -1171,3 +1171,24 @@ def update_password():
         'status': 'success',
         'message': _('Your password has been updated.')
     })
+
+
+@bp.route('/users/<int:id>/cradles', methods=['GET'])
+@token_auth.login_required
+def get_cradles_for_user(id):
+    '''
+    获取用户的孵化器集合
+    :param id:
+    :return:
+    '''
+    user = User.query.get_or_404(id)
+    if g.current_user != user:
+        return bad_request(403)
+    page = request.args.get('page', 1, type=int)
+    per_page = min(
+        request.args.get(
+            'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+    data = Cradle.to_collection_dict(
+        user.cradles.order_by(Cradle.timestamp.desc()),
+        page, per_page, 'api.get_cradles_for_user', id=id)
+    return jsonify(data)
