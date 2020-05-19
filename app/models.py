@@ -6,8 +6,8 @@ import jwt
 from time import time
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import url_for, current_app
-from app.extensions import db
-from app.utils.search import add_to_index, remove_from_index, query_index, es_highlight
+from app.extensions import db, whooshee
+from app.utils.elasticsearch import add_to_index, remove_from_index, query_index, es_highlight
 from sqlalchemy import text
 
 
@@ -183,6 +183,7 @@ microcons_cons = db.Table(
 
 
 # 标签如何新建？？
+@whooshee.register_model('content')
 class Tag(db.Model):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True)
@@ -320,7 +321,7 @@ class Role(PaginatedAPIMixin, db.Model):
     def __repr__(self):
         return '<Role {}>'.format(self.name)
 
-
+@whooshee.register_model('username', 'name', 'about_me')
 class User(PaginatedAPIMixin, db.Model):
     # 设置数据库表名，Post模型中的外键 user_id 会引用 users.id
     __tablename__ = 'users'
@@ -729,6 +730,7 @@ class User(PaginatedAPIMixin, db.Model):
     def __repr__(self):
         return '<User {}>'.format(self.username)
 
+@whooshee.register_model('title', 'summary', 'reference')
 class Micropub(PaginatedAPIMixin, db.Model):
 # class Micropub(SearchableMixin, PaginatedAPIMixin, db.Model):
     __tablename__ = 'micropubs'
@@ -860,10 +862,10 @@ class Micropub(PaginatedAPIMixin, db.Model):
 # db.event.listen(Micropub.body, 'set', Micropub.on_changed_body)  # body 字段有变化时，执行 on_changed_body() 方法
 
 
-# TODO?
 # db.event.listen(Micropub, 'after_insert', Micropub.receive_after_insert)
 # db.event.listen(Micropub, 'after_delete', Micropub.receive_after_delete)
 
+@whooshee.register_model('title', 'summary')
 class Microcon(PaginatedAPIMixin, db.Model):
     __tablename__ = 'microcons'
     id = db.Column(db.Integer, primary_key=True)

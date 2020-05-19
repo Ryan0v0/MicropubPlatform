@@ -7,6 +7,7 @@ from flask_migrate import Migrate
 from sqlalchemy import MetaData
 from flask_mail import Mail
 from flask_babel import Babel
+from flask_whooshee import Whooshee
 
 # Flask-Cors plugin
 cors = CORS()
@@ -25,3 +26,5 @@ migrate = Migrate(render_as_batch=True)
 mail = Mail()
 # Flask-Babel plugin
 babel = Babel()
+# Flask-Whooshee plugin
+whooshee = Whooshee()

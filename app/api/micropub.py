@@ -339,9 +339,9 @@ def export_micropubs():
 ###
 # 全文搜索
 ###
+'''
 @bp.route('/search/', methods=['GET'])
 def search():
-    '''Elasticsearch全文检索博客微知识'''
     q = request.args.get('q')
     if not q:
         return bad_request(message='keyword is required.')
@@ -374,10 +374,8 @@ def search():
     }
     return jsonify(data=data, message='Total items: {}, current page: {}'.format(total, page))
 
-
 @bp.route('/search/micropub-detail/<int:id>', methods=['GET'])
-def get_search_micropub(id):
-    '''从搜索结果列表页跳转到微知识详情'''
+def get_search_micropub(id): # 从搜索结果列表页跳转到微知识详情
     q = request.args.get('q')
     page = request.args.get('page', type=int)
     per_page = request.args.get('per_page', type=int)
@@ -407,3 +405,4 @@ def get_search_micropub(id):
     else:
         data['_links']['prev'] = None
     return jsonify(data)
+'''

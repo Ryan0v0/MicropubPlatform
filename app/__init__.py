@@ -7,7 +7,7 @@ import rq
 from flask import Flask, request
 from app.api import bp as api_bp
 # from app.api_v2.app import bp as api_v2_bp
-from app.extensions import cors, db, migrate, mail, babel
+from app.extensions import cors, db, migrate, mail, babel, whooshee
 
 
 def create_app(config_class=None):
@@ -60,6 +60,9 @@ def configure_extensions(app):
     mail.init_app(app)
     # Init Flask-Babel
     babel.init_app(app)
+    # Init Flask-Whooshee
+    whooshee.init_app(app)
+
 
     @babel.localeselector
     def get_locale():
