@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, current_app
 from app.api import bp
 from app.api.auth import token_auth
-from app.api.errors import bad_request
+from app.api.errors import bad_request, error_response
 from app.models import User, Micropub, Microcon
 from numpy import sqrt
 
@@ -153,7 +153,7 @@ def get_recommend_micropubs_for_user(id):
   '''
   user = User.query.get_or_404(id)
   if g.current_user != user:
-    return bad_request(403)
+    return error_response(403)
 
   k = request.args.get('k', 5, type=int)  # 邻居个数
   n = request.args.get('n', 10, type=int) # 推荐个数
@@ -187,7 +187,7 @@ def get_recommend_microcons_for_user(id):
   '''
   user = User.query.get_or_404(id)
   if g.current_user != user:
-    return bad_request(403)
+    return error_response(403)
 
   k = request.args.get('k', 5, type=int)  # 邻居个数
   n = request.args.get('n', 10, type=int) # 推荐个数
@@ -196,7 +196,7 @@ def get_recommend_microcons_for_user(id):
 
   # 用热点补齐 n 个
   if len(recommend_list) < n:
-    microcons = not Microcon.query.filter(Microcon.status == 1).\
+    microcons = Microcon.query.filter(Microcon.status == 1).\
       order_by(Microcon.views.desc()).all()
     for microcon in microcons:
       if microcon not in recommend_list:

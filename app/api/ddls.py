@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, current_app
 from app.api import bp
 from app.api.auth import token_auth
-from app.api.errors import bad_request
+from app.api.errors import bad_request, error_response
 from app.extensions import db
 from app.models import Cradle, DDL
 from datetime import datetime
@@ -13,7 +13,7 @@ def validation_check_of_create_ddl(data):
         message['body'] = 'Please provide valid body.'
     if 'deadline' not in data or not data.get('deadline').strip():
         message['deadline'] = 'Please provide valid deadline.'
-    elif datetime.strptime(data.get('deadline'), "%Y-%m-%d %H:%M") <= datetime.utcnow(): # TODO deadline 转时间
+    elif datetime.strptime(data.get('deadline'), "%Y-%m-%d %H:%M") <= datetime.now(): # TODO deadline 转时间
         message['deadline'] = 'Deadline should not be earlier than current time.'
 
     if 'cradle' not in data or not data.get('cradle').strip():
@@ -40,7 +40,7 @@ def create_ddl():
 
     cradle = Cradle.query.get_or_404(int(data.get('cradle')))
     if g.current_user != cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
 
     ddl = DDL()
     ddl.from_dict(data)
@@ -63,7 +63,7 @@ def delete_ddl(id):
     '''
     ddl = DDL.query.get_or_404(id)
     if g.current_user != ddl.cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
     db.session.delete(ddl)
     db.session.commit()
 
@@ -89,7 +89,7 @@ def update_ddl(id):
 
     ddl = DDL.query.get_or_404(id)
     if g.current_user != ddl.cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
 
     ddl.from_dict(data)
     db.session.commit()
@@ -116,7 +116,7 @@ def get_ddl(id):
 
     ddl = DDL.query.get_or_404(id)
     if g.current_user != ddl.cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
 
     ddl.from_dict(data)
     db.session.commit()

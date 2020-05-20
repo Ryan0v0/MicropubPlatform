@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, current_app
 from app.api import bp
 from app.api.auth import token_auth
-from app.api.errors import bad_request
+from app.api.errors import bad_request, error_response
 from app.extensions import db
 from app.models import Cradle, MicroknosCites, Micropub, Microcon
 from app.utils.decorator import permission_required, Permission
@@ -73,7 +73,7 @@ def get_microkno_cite(id):
     '''
     microknocite = MicroknosCites.query.get_or_404(id)
     if g.current_user != microknocite.user:
-        return bad_request(403)
+        return error_response(403)
     data = microknocite.to_dict()
     return jsonify(data)
 
@@ -89,7 +89,7 @@ def cancel_microkno_cite(id):
     microknocite = MicroknosCites.query.get_or_404(id)
     if g.current_user != microknocite.user \
             and g.current_user != microknocite.cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
 
     db.session.delete(microknocite)
     db.session.commit()

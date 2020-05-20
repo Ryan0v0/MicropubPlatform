@@ -271,7 +271,7 @@ def get_followers(id):
         if item['timestamp'] > last_read_time:
             item['is_new'] = True
     # 更新 last_follows_read_time 属性值
-    user.last_follows_read_time = datetime.utcnow()
+    user.last_follows_read_time = datetime.now()
     # 将新粉丝通知的计数归零
     user.add_notification('unread_follows_count', 0)
     db.session.commit()
@@ -362,7 +362,7 @@ def get_user_followeds_micropubs(id):
         item['is_collected'] = g.current_user.id in item['collecters_id']
         item['is_new'] = item['timestamp'] > last_read_time
     # 更新 last_followeds_micropubs_read_time 属性值
-    user.last_followeds_micropubs_read_time = datetime.utcnow()
+    user.last_followeds_micropubs_read_time = datetime.now()
     # 将新微知识通知的计数归零
     user.add_notification('unread_followeds_micropubs_count', 0)
     db.session.commit()
@@ -438,7 +438,7 @@ def get_user_recived_micropubs_likes(id):
     records['items'] = sorted(records['items'], key=itemgetter('timestamp'), reverse=True)
 
     # 更新 last_micropubs_likes_read_time 属性值
-    user.last_micropubs_likes_read_time = datetime.utcnow()
+    user.last_micropubs_likes_read_time = datetime.now()
 
     # 将新点赞通知的计数归零
     user.add_notification('unread_micropubs_likes_count', 0)
@@ -589,7 +589,7 @@ def get_user_recived_microcons_likes(id):
     records['items'] = sorted(records['items'], key=itemgetter('timestamp'), reverse=True)
 
     # 更新 last_microcons_likes_read_time 属性值
-    user.last_microcons_likes_read_time = datetime.utcnow()
+    user.last_microcons_likes_read_time = datetime.now()
 
     # 将新点赞通知的计数归零
     user.add_notification('unread_microcons_likes_count', 0)
@@ -618,7 +618,7 @@ def get_user_followeds_microcons(id):
         item['is_collected'] = g.current_user.id in item['collecters_id']
         item['is_new'] = item['timestamp'] > last_read_time
     # 更新 last_followeds_microcons_read_time 属性值
-    user.last_followeds_microcons_read_time = datetime.utcnow()
+    user.last_followeds_microcons_read_time = datetime.now()
     # 将新微猜想通知的计数归零
     user.add_notification('unread_followeds_microcons_count', 0)
     db.session.commit()
@@ -680,7 +680,7 @@ def get_user_recived_comments(id):
         if item['timestamp'] > last_read_time:
             item['is_new'] = True
     # 更新 last_recived_comments_read_time 属性值
-    user.last_recived_comments_read_time = datetime.utcnow()
+    user.last_recived_comments_read_time = datetime.now()
     # 将新评论通知的计数归零
     user.add_notification('unread_recived_comments_count', 0)
     db.session.commit()
@@ -733,7 +733,7 @@ def get_user_recived_comments_likes(id):
     # 按 timestamp 排序一个字典列表(倒序，最新点赞的人在最前面)
     records['items'] = sorted(records['items'], key=itemgetter('timestamp'), reverse=True)
     # 更新 last_comments_likes_read_time 属性值
-    user.last_comments_likes_read_time = datetime.utcnow()
+    user.last_comments_likes_read_time = datetime.now()
     # 将新点赞通知的计数归零
     user.add_notification('unread_comments_likes_count', 0)
     db.session.commit()
@@ -1183,7 +1183,7 @@ def get_cradles_for_user(id):
     '''
     user = User.query.get_or_404(id)
     if g.current_user != user:
-        return bad_request(403)
+        return error_response(403)
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(

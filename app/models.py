@@ -104,7 +104,7 @@ followers = db.Table(
     'followers',
     db.Column('follower_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('followed_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 评论点赞
@@ -112,7 +112,7 @@ comments_likes = db.Table(
     'comments_likes',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('comment_id', db.Integer, db.ForeignKey('comments.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 黑名单(user_id 屏蔽 block_id)
@@ -120,7 +120,7 @@ blacklist = db.Table(
     'blacklist',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('block_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 点赞微知识
@@ -128,7 +128,7 @@ micropubs_likes = db.Table(
     'micropubs_likes',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 收藏微知识
@@ -136,7 +136,7 @@ micropubs_collects = db.Table(
     'micropubs_collects',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 点赞微猜想
@@ -144,7 +144,7 @@ microcons_likes = db.Table(
     'microcons_likes',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 收藏微猜想
@@ -152,7 +152,7 @@ microcons_collects = db.Table(
     'microcons_collects',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 微猜想引用微证据
@@ -160,7 +160,7 @@ microcons_micropubs = db.Table(
     'microcons_micropubs',
     db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
+    db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 通过微猜想
@@ -168,7 +168,7 @@ microcons_pros = db.Table(
     'microcons_pors',
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow),
+    db.Column('timestamp', db.DateTime, default=datetime.now),
     db.Column('reason', db.String(255))
 )
 
@@ -177,7 +177,7 @@ microcons_cons = db.Table(
     'microcons_cons',
     db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
     db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow),
+    db.Column('timestamp', db.DateTime, default=datetime.now),
     db.Column('reason', db.String(255))
 )
 
@@ -331,8 +331,8 @@ class User(PaginatedAPIMixin, db.Model):
     name = db.Column(db.String(64))
     location = db.Column(db.String(64))
     about_me = db.Column(db.Text())
-    member_since = db.Column(db.DateTime(), default=datetime.utcnow)
-    last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
+    member_since = db.Column(db.DateTime(), default=datetime.now)
+    last_seen = db.Column(db.DateTime(), default=datetime.now)
     # 反向引用，直接查询出当前用户的所有博客微知识; 同时，Post实例中会有 author 属性
     # cascade 用于级联删除，当删除user时，该user下面的所有micropubs都会被级联删除
     micropubs = db.relationship('Micropub', backref='author', lazy='dynamic',
@@ -462,12 +462,12 @@ class User(PaginatedAPIMixin, db.Model):
 
     def ping(self):
         '''更新用户的最后访问时间'''
-        self.last_seen = datetime.utcnow()
+        self.last_seen = datetime.now()
         db.session.add(self)
 
     def get_jwt(self, expires_in=3600):
         '''用户登录后，发放有效的 JWT'''
-        now = datetime.utcnow()
+        now = datetime.now()
         payload = {
             'user_id': self.id,
             'confirmed': self.confirmed,
@@ -651,7 +651,7 @@ class User(PaginatedAPIMixin, db.Model):
 
     def generate_confirm_jwt(self, expires_in=3600):
         '''生成确认账户的 JWT'''
-        now = datetime.utcnow()
+        now = datetime.now()
         payload = {
             'user_id': self.id,
             'confirm': self.id,
@@ -683,7 +683,7 @@ class User(PaginatedAPIMixin, db.Model):
 
     def generate_reset_password_jwt(self, expires_in=3600):
         '''生成重置账户密码的 JWT'''
-        now = datetime.utcnow()
+        now = datetime.now()
         payload = {
             'reset_password': self.id,
             'exp': now + timedelta(seconds=expires_in),
@@ -749,7 +749,7 @@ class Micropub(PaginatedAPIMixin, db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     tags = db.relationship('Tag', backref='micropub', lazy='dynamic',
                            cascade='all, delete-orphan')
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     views = db.Column(db.Integer, default=0)  # 浏览人次，用于评估热度
     # 微证据与点赞/收藏它的人是多对多关系
     likers = db.relationship('User', secondary=micropubs_likes,
@@ -887,7 +887,7 @@ class Microcon(PaginatedAPIMixin, db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     tags = db.relationship('Tag', backref='microcon', lazy='dynamic',
                            cascade='all, delete-orphan')
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     views = db.Column(db.Integer, default=0)  # 浏览人次，用于评估热度
     # status = db.Column(db.Integer, default=0) # 对个人而言？评审中 0， 已通过 1， 已否决 -1
     # 微猜想与通过或者否决它的人是多对多关系
@@ -1078,7 +1078,7 @@ class Comment(PaginatedAPIMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     mark_read = db.Column(db.Boolean, default=False)  # 微知识作者会收到评论提醒，可以标为已读
     disabled = db.Column(db.Boolean, default=False)  # 屏蔽显示
     # 评论与对它点赞的人是多对多关系
@@ -1244,7 +1244,7 @@ class Message(PaginatedAPIMixin, db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
@@ -1315,7 +1315,7 @@ class DDL(PaginatedAPIMixin, db.Model):
     __tablename__ = 'ddls'
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow) # 创建或最后一次修改时间
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now) # 创建或最后一次修改时间
     deadline = db.Column(db.DateTime, index=True)                           # 截至时间
     cradle_id = db.Column(db.Integer, db.ForeignKey('cradles.id')) # 一对多，多方
     passed = db.Column(db.Boolean, default=False)  # 是否截止
@@ -1324,7 +1324,7 @@ class DDL(PaginatedAPIMixin, db.Model):
         return '<DDL {}>'.format(self.id)
 
     def to_dict(self):
-        self.passed = self.deadline < datetime.utcnow() # TODO
+        self.passed = self.deadline < datetime.now() # TODO
         data = {
             'id': self.id,
             'timestamp': self.timestamp,
@@ -1356,7 +1356,7 @@ class MicroknosCites(PaginatedAPIMixin, db.Model):
     micropub_id = db.Column(db.Integer, db.ForeignKey('micropubs.id')) # 一对多，多方
     microcon_id = db.Column(db.Integer, db.ForeignKey('microcons.id')) # 一对多，多方
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))         # 一对多，多方
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     cradle_id = db.Column(db.Integer, db.ForeignKey('cradles.id'))     # 一对多，多方
     reason = db.Column(db.TEXT)
 
@@ -1408,7 +1408,7 @@ class Cradle(PaginatedAPIMixin, db.Model):
     title = db.Column(db.TEXT)
     body = db.Column(db.TEXT)
     sponsor_id = db.Column(db.Integer, db.ForeignKey('users.id'))                   # 一对多，多方
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     comments = db.relationship('Comment', backref='cradle', lazy='dynamic',         # 一对多，一方
                                cascade='all, delete-orphan')
     microknos = db.relationship('MicroknosCites', backref='cradle', lazy='dynamic', # 一对多，一方

@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, current_app
 from app.api import bp
 from app.api.auth import token_auth
-from app.api.errors import bad_request
+from app.api.errors import bad_request, error_response
 from app.extensions import db
 from app.models import Cradle, MicroknosCites, DDL, Comment
 from app.utils.decorator import permission_required, Permission
@@ -78,7 +78,7 @@ def delete_cradle(id):
     '''
     cradle = Cradle.query.get_or_404(id)
     if g.current_user != cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
 
     db.session.delete(cradle)
     db.session.commit()
@@ -108,7 +108,7 @@ def update_cradle(id):
 
     cradle = Cradle.query.get_or_404(id)
     if g.current_user != cradle.sponsor:
-        return bad_request(403)
+        return error_response(403)
 
     cradle.from_dict(data)
     db.session.commit()
