@@ -102,72 +102,72 @@ class PaginatedAPIMixin(object):
 # 粉丝关注他人
 followers = db.Table(
     'followers',
-    db.Column('follower_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('followed_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('follower_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('followed_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 评论点赞
 comments_likes = db.Table(
     'comments_likes',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('comment_id', db.Integer, db.ForeignKey('comments.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('comment_id', db.Integer, db.ForeignKey('comments.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 黑名单(user_id 屏蔽 block_id)
 blacklist = db.Table(
     'blacklist',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('block_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('block_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 点赞微知识
 micropubs_likes = db.Table(
     'micropubs_likes',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 收藏微知识
 micropubs_collects = db.Table(
     'micropubs_collects',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 点赞微猜想
 microcons_likes = db.Table(
     'microcons_likes',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 收藏微猜想
 microcons_collects = db.Table(
     'microcons_collects',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 微猜想引用微证据
 microcons_micropubs = db.Table(
     'microcons_micropubs',
-    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id')),
-    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id', ondelete='CASCADE')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now)
 )
 
 # 通过微猜想
 microcons_pros = db.Table(
     'microcons_pors',
-    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id', ondelete='CASCADE')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now),
     db.Column('reason', db.String(255))
 )
@@ -175,8 +175,8 @@ microcons_pros = db.Table(
 # 否决微猜想
 microcons_cons = db.Table(
     'microcons_cons',
-    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id')),
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('microcon_id', db.Integer, db.ForeignKey('microcons.id', ondelete='CASCADE')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
     db.Column('timestamp', db.DateTime, default=datetime.now),
     db.Column('reason', db.String(255))
 )

@@ -47,11 +47,11 @@ def validation_check(data):
         micropubs = []
         for index, m_id in enumerate(micropubs_ids):
             m = Micropub.query.filter(Micropub.id==m_id).first()
-            if not m:
+            if m == None:
                 message['micropubs'] = 'The cited micropub does not exist.'
             else:
                 micropubs.append(m)
-        if micropubs[0] == micropubs[1]:
+        if (not message['micropubs']) and (micropubs[0] == micropubs[1]):
             message['micropubs'] = 'You can not cite the same micropub twice.'
 
         if not message:
@@ -241,12 +241,12 @@ def delete_microcon(id):
     microcon = Microcon.query.get_or_404(id)
 
     # 403
-
+    author = microcon.author
     db.session.delete(microcon)
     db.session.commit()
 
     # 给微猜想作者的所有粉丝发送新微证据通知
-    for user in microcon.author.followers:
+    for user in author.followers:
         user.add_notification('unread_followeds_microcons_count',
                               user.new_followeds_microcons())
 

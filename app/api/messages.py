@@ -88,9 +88,10 @@ def delete_message(id):
     message = Message.query.get_or_404(id)
     if g.current_user != message.sender:
         return error_response(403)
+    recipient = message.recipient
     db.session.delete(message)
     # 给私信接收者发送新私信通知(需要自动减1)
-    message.recipient.add_notification('unread_messages_count',
+    recipient.add_notification('unread_messages_count',
                                        message.recipient.new_recived_messages())
     db.session.commit()
     return '', 204

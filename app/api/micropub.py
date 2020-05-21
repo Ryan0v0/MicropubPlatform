@@ -209,11 +209,12 @@ def delete_micropub(id):
 
     # 403
 
+    author = micropub.author
     db.session.delete(micropub)
     db.session.commit()
 
     # 给微证据作者的所有粉丝发送新微证据通知(需要自动减1)
-    for user in micropub.author.followers:
+    for user in author.followers:
         user.add_notification('unread_followeds_micropubs_count',
                               user.new_followeds_micropubs())
     db.session.commit()

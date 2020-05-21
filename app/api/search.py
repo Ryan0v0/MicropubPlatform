@@ -34,6 +34,7 @@ def search():
     # print(per_page)
     # print(pagination)
 
+    print(len(results))
     total_pages, div = divmod(len(results), per_page)
     if div > 0:
         total_pages += 1

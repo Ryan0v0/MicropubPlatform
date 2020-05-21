@@ -67,7 +67,7 @@ def delete_ddl(id):
     db.session.delete(ddl)
     db.session.commit()
 
-    data = ddl.to_dict()
+    data = ddl.to_dict() # TODO
     return jsonify(data)
 
 
