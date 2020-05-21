@@ -5,6 +5,7 @@ from app.api.errors import error_response, bad_request
 from app.extensions import db
 from app.models import Permission, Micropub, Comment, Tag
 from app.utils.decorator import permission_required
+from datetime import datetime, timedelta
 
 
 '''
@@ -111,10 +112,7 @@ def get_micropubs():
 def get_hot_micropubs():
     '''
     :return: 按热度返回微知识集合
-    返回最热的 10 条微证据
-    如果微证据数小于 10 条，则按 views 降序全部返回，
-    否则，如果微证据数小于 50 条，则按 views 降序返回前 10 条，
-    # TODO 否则，二分时间戳找到正好比 50 条多的时间，按 views 降序返回前 10 条
+    如果微知识是在当前时间前1小时之外发布的，tmp_views = views - 10(负数也不影响)
     '''
     '''
     data = Micropub.query.order_by(Micropub.views.desc()).all()
@@ -128,8 +126,11 @@ def get_hot_micropubs():
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+    early_time = datetime.now() - timedelta(hours=1)
+    db.engine.execute("update micropubs set tmp_views=views;")
+    db.engine.execute("update micropubs set tmp_views=tmp_views-10 where timestamp<?", [early_time])
     data = Micropub.to_collection_dict(
-        Micropub.query.order_by(Micropub.views.desc()), page, per_page,
+        Micropub.query.order_by(Micropub.tmp_views.desc()), page, per_page,
         'api.get_hot_micropubs')
     return jsonify(data)
 

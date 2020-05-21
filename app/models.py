@@ -751,6 +751,7 @@ class Micropub(PaginatedAPIMixin, db.Model):
                            cascade='all, delete-orphan')
     timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     views = db.Column(db.Integer, default=0)  # 浏览人次，用于评估热度
+    tmp_views = db.Column(db.Integer, default=0) # 用于产生热榜
     # 微证据与点赞/收藏它的人是多对多关系
     likers = db.relationship('User', secondary=micropubs_likes,
                              backref=db.backref('liked_micropubs', lazy='dynamic'), lazy='dynamic')
@@ -889,6 +890,7 @@ class Microcon(PaginatedAPIMixin, db.Model):
                            cascade='all, delete-orphan')
     timestamp = db.Column(db.DateTime, index=True, default=datetime.now)
     views = db.Column(db.Integer, default=0)  # 浏览人次，用于评估热度
+    tmp_views = db.Column(db.Integer, default=0)  # 用于产生热榜
     # status = db.Column(db.Integer, default=0) # 对个人而言？评审中 0， 已通过 1， 已否决 -1
     # 微猜想与通过或者否决它的人是多对多关系
     pros = db.relationship('User', secondary=microcons_pros,

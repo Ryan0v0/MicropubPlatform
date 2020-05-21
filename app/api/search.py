@@ -10,6 +10,8 @@ def search():
     q = request.args.get('q', '').strip()
     if q == '':
         return bad_request(message='Enter keyword about micropub, microcon, user or tag.')
+    if len(q) < 3:
+        return bad_request(message='Keyword must be 3 characters or more.')
 
     category = request.args.get('category', 'micropub') # 默认搜索微证据
     page = request.args.get('page', 1, type=int)
@@ -28,18 +30,33 @@ def search():
     results = pagination.items
 
     # 总页数
-    total_pages, div = divmod(results, per_page)
+    # print(results)
+    # print(per_page)
+    # print(pagination)
+
+    total_pages, div = divmod(len(results), per_page)
     if div > 0:
         total_pages += 1
 
     # 不能使用 Micropub.to_collection_dict()，因为查询结果已经分页过了
+    to_url_results = []
+    for item in results:
+        if type(item)==Micropub:
+            to_url_results.append(url_for('api.get_micropub', id=item.id))
+        elif type(item)==Tag:
+            to_url_results.append(url_for('api.get_tag', id=item.id))
+        elif type(item)==Microcon:
+            to_url_results.append(url_for('api.get_microcon', id=item.id))
+        elif type(item)==User:
+            to_url_results.append(url_for('api.get_user', id=item.id))
+
     data = {
-        'items': [item.to_dict() for item in pagination],
+        'items': [item.to_dict() for item in pagination.items],
         '_meta': {
             'page': page,
             'per_page': per_page,
             'total_pages': total_pages,
-            'total_items': results
+            'total_items': to_url_results
         },
         '_links': {
             'self': url_for('api.search', q=q, page=page, per_page=per_page),
@@ -47,4 +64,5 @@ def search():
             'prev': url_for('api.search', q=q, page=page - 1, per_page=per_page) if page > 1 else None
         }
     }
-    return jsonify(data=data, message='Total items: {}, current page: {}'.format(results, page))
+    # print(data)
+    return jsonify(data=data, message={"Total items": to_url_results, "current page": page})

@@ -4,6 +4,7 @@ from app.api.auth import token_auth
 from app.api.errors import error_response, bad_request
 from app.extensions import db
 from app.models import Microcon, Tag, Micropub
+from datetime import datetime, timedelta
 
 
 '''
@@ -139,10 +140,7 @@ def get_microcons():
 def get_hot_microcons():
     '''
     :return: 按热度返回【通过的】微知识集合
-    返回最热的 10 条微猜想
-    如果微猜想数小于 10 条，则按 views 降序全部返回，
-    否则，如果微猜想数小于 50 条，则按 views 降序返回前 10 条，
-    # TODO 否则，二分时间戳找到正好比 50 条多的时间，按 views 降序返回前 10 条
+    将1h前发布的微猜想热度-10加入排序
     '''
     '''
     data = Microcon.query.order_by(Microcon.views.desc()).all()
@@ -157,8 +155,11 @@ def get_hot_microcons():
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+    early_time = datetime.now() - timedelta(hours=1)
+    db.engine.execute("update microcons set tmp_views=views;")
+    db.engine.execute("update microcons set tmp_views=tmp_views-10 where timestamp<?", [early_time])
     data = Microcon.to_collection_dict(
-        Microcon.query.filter(Microcon.status==1).order_by(Microcon.views.desc()), page, per_page,
+        Microcon.query.filter(Microcon.status==1).order_by(Microcon.tmp_views.desc()), page, per_page,
         'api.get_hot_microcons')
     return jsonify(data)
 
