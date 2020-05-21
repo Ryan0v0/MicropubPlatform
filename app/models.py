@@ -262,7 +262,7 @@ class Role(PaginatedAPIMixin, db.Model):
             'administrator': ('管理员', (Permission.FOLLOW, Permission.COMMENT, Permission.WRITE, Permission.ADMIN)),
             'sponsor': ('赞助商', (Permission.FOLLOW, Permission.COMMENT, Permission.SPONSOR))
         }
-        default_role = 'reader'
+        default_role = 'author'
         for r in roles:  # r 是字典的键
             role = Role.query.filter_by(slug=r).first()
             if role is None:
