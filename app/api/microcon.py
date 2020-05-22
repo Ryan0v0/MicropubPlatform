@@ -5,7 +5,7 @@ from app.api.errors import error_response, bad_request
 from app.extensions import db
 from app.models import Microcon, Tag, Micropub
 from datetime import datetime, timedelta
-
+from app.utils.decorator import permission_required, Permission, admin_required
 
 '''
 增删改查
@@ -70,6 +70,7 @@ def validation_check(data):
 # 创建微猜想
 @bp.route('/microcons/', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.WRITE)
 def create_microcon():
     data = request.get_json()
 
@@ -205,6 +206,7 @@ def get_microcon(id):
 
 @bp.route('/microcons/<int:id>', methods=['PUT'])
 @token_auth.login_required
+@permission_required(Permission.WRITE)
 def update_microcon(id):
     '''
     :param id: 微证据 ID
@@ -233,6 +235,7 @@ def update_microcon(id):
 # 既然普通用户不能删除，，那就不考虑评审状态了
 @bp.route('/microcons/<int:id>', methods=['DELETE'])
 @token_auth.login_required
+@admin_required
 def delete_microcon(id):
     '''
     :param id: 微证据 ID
@@ -260,6 +263,7 @@ def delete_microcon(id):
 # 点赞微猜想
 @bp.route('/microcons/<int:id>/like', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def like_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if microcon.status == 0:
@@ -283,6 +287,7 @@ def like_microcon(id):
 # 取消点赞微猜想
 @bp.route('/microcons/<int:id>/unlike', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def unlike_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if not microcon.unliked_by(g.current_user):
@@ -366,6 +371,7 @@ def get_microcons_by_tags():
 # 通过微猜想
 @bp.route('/microcons/<int:id>/pro', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def pro_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if g.current_user == microcon.author: # 不能审核自己
@@ -398,6 +404,7 @@ def pro_microcon(id):
 # 否决微猜想
 @bp.route('/microcons/<int:id>/con', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def con_microcon(id):
     microcon = Microcon.query.get_or_404(id)
     if g.current_user == microcon.author: # 不能审核自己

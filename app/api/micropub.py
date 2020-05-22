@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models import Permission, Micropub, Comment, Tag
 from app.utils.decorator import permission_required
 from datetime import datetime, timedelta
-
+from app.utils.decorator import permission_required, Permission, admin_required
 
 '''
 增删改查
@@ -54,6 +54,7 @@ def validation_check(data):
 
 @bp.route('/micropubs/', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.WRITE)
 def create_micropub():
     '''添加一篇新微知识'''
     data = request.get_json()
@@ -174,6 +175,7 @@ def get_micropub(id):
 
 @bp.route('/micropubs/<int:id>', methods=['PUT'])
 @token_auth.login_required
+@permission_required(Permission.WRITE)
 def update_micropub(id):
     '''
     :param id: 微证据 ID
@@ -200,6 +202,7 @@ def update_micropub(id):
 
 @bp.route('/micropubs/<int:id>', methods=['DELETE'])
 @token_auth.login_required
+@admin_required
 def delete_micropub(id):
     '''
     :param id: 微证据 ID
@@ -228,6 +231,7 @@ def delete_micropub(id):
 # 点赞微证据
 @bp.route('/micropubs/<int:id>/like', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def like_micropub(id):
     micropub = Micropub.query.get_or_404(id)
 
@@ -248,6 +252,7 @@ def like_micropub(id):
 # 取消点赞微证据
 @bp.route('/micropubs/<int:id>/unlike', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def unlike_micropub(id):
     micropub = Micropub.query.get_or_404(id)
     if not micropub.unliked_by(g.current_user):

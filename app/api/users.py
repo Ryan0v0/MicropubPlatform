@@ -148,6 +148,8 @@ def delete_user(id):
     user = User.query.get_or_404(id)
     if g.current_user != user and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
+
+    #
     db.session.delete(user)
     db.session.commit()
     return '', 204

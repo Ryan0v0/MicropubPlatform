@@ -4,7 +4,7 @@ from app.api.auth import token_auth
 from app.api.errors import error_response, bad_request
 from app.extensions import db
 from app.models import Permission, Micropub, Comment, Microcon, Cradle
-from app.utils.decorator import permission_required
+from app.utils.decorator import permission_required, Permission
 
 
 def comment_for_microkno(is_micropub, data, microknow):
@@ -178,6 +178,7 @@ def delete_comment_of_cradle(comment):
 
 @bp.route('/comments/<int:id>', methods=['DELETE'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def delete_comment(id):
     '''删除单个评论'''
     comment = Comment.query.get_or_404(id)

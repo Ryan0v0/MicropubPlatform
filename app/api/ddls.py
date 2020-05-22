@@ -73,6 +73,7 @@ def delete_ddl(id):
 
 @bp.route('/ddls/', methods=['PUT'])
 @token_auth.login_required
+@permission_required(Permission.SPONSOR)
 def update_ddl(id):
     '''
        修改 DDL
@@ -102,7 +103,7 @@ def update_ddl(id):
 @token_auth.login_required
 def get_ddl(id):
     '''
-       修改 DDL
+       获取 DDL
        :param id: DDL ID
        :return:
     '''

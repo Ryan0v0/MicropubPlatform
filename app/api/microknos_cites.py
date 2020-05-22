@@ -24,6 +24,7 @@ def validation_check_of_cite_microkno(data):
 
 @bp.route('/microknos-cites/', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def create_microkno_cite():
     '''
     向孵化器中添加微知识
@@ -80,6 +81,7 @@ def get_microkno_cite(id):
 
 @bp.route('/microknos-cites/<int:id>', methods=['DELETE'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def cancel_microkno_cite(id):
     '''
     解除向孵化器中的微知识添加

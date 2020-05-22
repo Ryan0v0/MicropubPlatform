@@ -6,10 +6,12 @@ from app.extensions import db
 from app.models import User, Message
 from app.utils.decorator import admin_required
 from sqlalchemy import text
+from app.utils.decorator import permission_required, Permission
 
 
 @bp.route('/messages/', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def create_message():
     '''给其它用户发送私信'''
     data = request.get_json()
@@ -66,6 +68,7 @@ def get_message(id):
 
 @bp.route('/messages/<int:id>', methods=['PUT'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def update_message(id):
     '''修改单个私信'''
     message = Message.query.get_or_404(id)
@@ -83,6 +86,7 @@ def update_message(id):
 
 @bp.route('/messages/<int:id>', methods=['DELETE'])
 @token_auth.login_required
+@permission_required(Permission.COMMENT)
 def delete_message(id):
     '''删除单个私信'''
     message = Message.query.get_or_404(id)
