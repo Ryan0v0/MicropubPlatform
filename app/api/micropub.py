@@ -180,11 +180,14 @@ def update_micropub(id):
     '''
     :param id: 微证据 ID
     :return: 修改后的微知识
+    评审阶段可以修改，修改后评审消息清空
     '''
     micropub = Micropub.query.get_or_404(id)
 
     # 权限检查
     if g.current_user != micropub.author:
+        return error_response(403)
+    if micropub.status != 0:
         return error_response(403)
 
     # 合法性检查
@@ -196,21 +199,22 @@ def update_micropub(id):
         return bad_request(error_message)
 
     micropub.from_dict(data)
+    micropub.remove_all_judge()
     db.session.commit()
     return jsonify(micropub.to_dict())
 
 
 @bp.route('/micropubs/<int:id>', methods=['DELETE'])
 @token_auth.login_required
-@admin_required
 def delete_micropub(id):
     '''
     :param id: 微证据 ID
     :return:   被删除的微证据和成功信息
     '''
     micropub = Micropub.query.get_or_404(id)
-
-    # 403
+    if not (g.current_user.can(Permission.ADMIN)
+            or (micropub.status == 0 and g.current_user == micropub)):
+        return error_response(403)
 
     author = micropub.author
     db.session.delete(micropub)
@@ -413,3 +417,72 @@ def get_search_micropub(id): # 从搜索结果列表页跳转到微知识详情
         data['_links']['prev'] = None
     return jsonify(data)
 '''
+
+
+# 通过微证据
+@bp.route('/micropubs/<int:id>/pro', methods=['POST'])
+@token_auth.login_required
+@permission_required(Permission.COMMENT)
+def pro_micropub(id):
+    micropub = Micropub.query.get_or_404(id)
+    if g.current_user == micropub.author: # 不能审核自己
+        return error_response(403)
+    if micropub.status != 0:
+        return jsonify({
+            'status': 'failed',
+            'message': 'This micropub is already in {} state'.
+                format('proed' if micropub.status == 1 else 'coned')
+        })
+    data = request.get_json()
+    if 'reason' not in data or not data.get('reason').strip():
+        return bad_request('Please provide the reason of proing micropub {}'.format(id))
+    elif len(data.get('reason').strip()) > 255:
+        return bad_request('The maximum length of proing reason is 255.')
+
+    if not micropub.proed_by(g.current_user, data.get('reason').strip()):
+        return jsonify({
+            'status': 'failed',
+            'message': 'You have aready judged micropub {}.'.format(id)
+        })
+    if micropub.pros.count() >= 3:
+        micropub.status = 1
+        db.session.commit()
+    return jsonify({
+        'status': 'success',
+        'message': 'You are proing micropub {}.'.format(id)
+    })
+
+# 否决微证据
+@bp.route('/micropubs/<int:id>/con', methods=['POST'])
+@token_auth.login_required
+@permission_required(Permission.COMMENT)
+def con_micropub(id):
+    micropub = Micropub.query.get_or_404(id)
+    if g.current_user == micropub.author: # 不能审核自己
+        return error_response(403)
+    if micropub.status != 0:
+        return jsonify({
+            'status': 'failed',
+            'message': 'This micropub is already in {} state'.
+                format('proed' if micropub.status == 1 else 'coned')
+        })
+
+    data = request.get_json()
+    if 'reason' not in data or not data.get('reason').strip():
+        return bad_request('Please provide the reason of coning micropub {}'.format(id))
+    elif len(data.get('reason').strip()) > 255:
+        return bad_request('The maximum length of coning reason is 255.')
+
+    if not micropub.coned_by(g.current_user, data.get('reason').strip()):
+        return jsonify({
+            'status': 'failed',
+            'message': 'You have aready judged micropub {}.'.format(id)
+        })
+    if micropub.cons.count() >= 3:
+        micropub.status = -1
+        db.session.commit()
+    return jsonify({
+        'status': 'success',
+        'message': 'You are coning micropub {}.'.format(id)
+    })
+

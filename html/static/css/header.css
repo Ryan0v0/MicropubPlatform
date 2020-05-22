@@ -1,0 +1,16 @@
+/* html,body,#app{
+    width: 100%;
+    height: 100%; 
+} */
+.header{
+    box-shadow:0 1px 3px rgba(26,26,26,.3);
+    height:70px;
+    position: sticky;
+    top:0;
+    z-index: 9999;
+}
+.header-content{
+    height:70px;
+    padding:10px;
+    font-size: 25px;
+}

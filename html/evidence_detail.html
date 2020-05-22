@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+        <script src="https://cdn.staticfile.org/jquery/3.2.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/popper.js/1.15.0/umd/popper.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/js/bootstrap.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
+        <title>微证据详情</title>
+    </head>
+    <body>
+        <div id='app'>
+            <!--粘性标题栏-->
+            <div class="container-fluid header" v-bind:style="{'background-color':styleobject.front}">
+                <!--img src="static/img/guard.png" style="height:60px;width:60px; margin:5px;"-->
+                <img v-bind:src="darkmode?'static/img/dark_home.png':'static/img/light_home.png'"
+                    style="width: 50px;height: 50px;margin-top:5px;vertical-align: top;" class="main"
+                    onclick="window.location.href='index.html'">
+                <div class="header-content" style="display:inline-block;">微证据详情</div>
+                <button  v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode}"  style="float:right;height:100%;" v-on:click="switchtheme">切换主题</button>
+
+                <div class="dropdown" style="float:right">
+                    <div class="main dropdown-toggle" data-toggle="dropdown" style="width: 75px;height:60px;margin:5px;float: right;padding: 5px;">
+                        <img v-bind:src="mineavatar?mineavatar:'static/img/avater.jpg'" 
+                        style="width:50px;height:50px;">
+                    </div>
+                    <div class="dropdown-menu" v-bind:style="{'background-color':styleobject.front }">
+                        <a class="dropdown-item" href="index.html" v-bind:style="{color:styleobject.content}">首页</a>
+                        <a class="dropdown-item" href="usercenter.html" v-bind:style="{color:styleobject.content}">个人中心</a>
+                        <!--div class="dropdown-divider"></div-->
+                    </div>
+                </div>
+            </div>
+            <!--主体-->
+            <div class="container-fluid" style="margin-top:30px;">
+                <!--左侧-->
+                <div class="middle">
+                    <!--标题栏-->
+                    <div class="main middle-header" v-bind:style="{'background-color':styleobject.front}">
+                        <!--标签-->
+                        <span v-for="topic in topics" style="margin-left:5px;"
+                        v-bind:class="{badge:true,'badge-pill':true,'badge-lightself':!darkmode,'badge-success':darkmode}">{{topic}}</span>
+
+                        <hr v-bind:style="{border:'1px solid '+styleobject.content,margin:'3px'}">
+                        <h3>{{header}} </h3>
+                    </div>
+                    <!--内容-->
+                    <div class="main middle-body" v-bind:style="{'background-color':styleobject.front}">
+                        <span style="font-size: 20px;"><strong>微证据详情:<br>{{content}}</strong></span>
+                        <div style="height: 40px;width: 100%;">
+                            <div class="btn-group" style="width:50% ;float: right;">
+                                <button v-bind:class="{btn:true,leftbutton:true,
+                                    'btn-outline-primary':!darkmode&&!liked,'btn-outline-success':darkmode&&!liked,
+                                    'btn-primary':!darkmode&&liked,'btn-success':darkmode&&liked}" v-on:click="like_click">
+                                    {{liked?'已点赞':'点赞'}}</button>
+                                <button v-bind:class="{btn:true,leftbutton:true,
+                                    'btn-outline-primary':!darkmode&&!collected,'btn-outline-success':darkmode&&!collected,
+                                    'btn-primary':!darkmode&&collected,'btn-success':darkmode&&collected}" v-on:click="collect_click">
+                                    {{collected?'已收藏':'收藏'}}</button>
+                                <button v-bind:class="{btn:true,leftbutton:true,'btn-outline-primary':!darkmode,'btn-outline-success':darkmode}" v-on:click="comment_button_click()">{{input_comment?'收起评论输入':'评论'}}</button>
+                            </div>
+                        </div>
+                        <hr v-bind:style="{border:'1px solid '+styleobject.content,margin:'3px'}">
+                        <strong>外部引用:</strong><br/>
+                        {{hrefs.length>0?'':'作者没有引用'}}
+                        <a v-for="(href,index) in hrefs" v-bind:href="href" v-bind:style="{'color':styleobject.content}">
+                            外部引用{{index+1}}:{{href}} <br></a>
+                        
+                    </div>
+                    <!--评论区-->
+                    <div class="main middle-body" v-bind:style="{'background-color':styleobject.front,'font-size':'20px'}">
+                        评论区
+                    </div>
+                    <div class="main middle-body" v-bind:style="{'background-color':styleobject.front,'font-size':'0'}"
+                    v-show="input_comment" id="commenttext">
+                        <textarea type="input" class="form-control" v-bind:style="{'background-color':styleobject.front,color:styleobject.content,height:'100px','padding-top':0}" v-model="new_comment"></textarea>
+                        <button v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode,}"
+                        style="margin:10px;" v-on:click="send_comment">发表评论</button>
+                    </div>
+
+                    <div v-for="comment in comments" class="main comment" v-bind:style="{'background-color':styleobject.front}">
+                        <a  v-bind:href="'userinfo.html?id='+comment.id">@{{comment.username}}</a>:{{comment.content}}
+                        <div style="width: 100%;">发表于:{{comment.date}}
+                            <span style="float: right;">
+                                <u  style="cursor: pointer;" v-on:click="comment_like_click(comment.comment_id,comment.liked,comment)">
+                                    {{comment.liked?'取消点赞':'点赞'}}
+                                </u>
+                                &nbsp;&nbsp;
+                                <u v-show="comment.mine" style="cursor: pointer;" v-on:click="delete_comment(comment.comment_id)">删除</u>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="main middle-body" v-bind:style="{'background-color':styleobject.front,'text-align':'center',width:'100%',margin:'0 auto','cursor':'pointer'}" v-show="comments.length==0">
+                        暂无评论
+                    </div>
+                    <!--div class="main middle-body" v-bind:style="{'background-color':styleobject.front,'text-align':'center',width:'100%',margin:'0 auto','cursor':'pointer'}" v-on:click="morecomments()">
+                        点击加载更多
+                    </div-->
+                </div>
+                <!--右侧-->
+                <div class="right">
+                    <div class="main right-bar" v-bind:style="{'background-color':styleobject.front,'text-align':'center'}">
+                        <strong>微证据详情</strong><br>
+                        发表时间:{{time}}
+                        <hr v-bind:style="{border:'1px solid '+styleobject.content,margin:'3px'}">
+                        <table style="width:100%;text-align: center;" >
+                            <thead>
+                                <th>浏览</th>
+                                <th>点赞</th>
+                                <th>评论</th>
+                            </thead>
+                            <tbody><tr>
+                                <td>{{views}}</td>
+                                <td>{{like}}</td>
+                                <td>{{remark}}</td>
+                            </tr></tbody>
+                        </table>
+                        
+                        <template v-if="modify">
+                            <button v-bind:class="{btn:true,leftbutton:true,'btn-primary':!darkmode,'btn-success':darkmode}" style="width: 99%;margin-top: 5px;" v-on:click="goto_modify">修改此微证据</button>
+                            <!--button class="btn btn-danger" style="width: 99%;margin-top: 2px;" v-on:click="goto_delete">删除此微证据</button-->
+                        </template>
+                    </div>
+                    <div class="main right-bar" v-bind:style="{'background-color':styleobject.front,'text-align':'center'}">
+                        <strong>作者详情</strong><br>
+                        {{userinfo.username}}<br>
+                        <a v-bind:href="'userinfo.html?id='+userinfo.id" style="font-size: 12px; color: #2E4E7E">前往Ta的个人主页></a><br>
+                        <img v-bind:src="userinfo.avatar?userinfo.avatar:'static/img/avater.jpg'" class="avatar"><br>
+                        <span v-if="userinfo.confirmed" class="badge badge-primary">已注册</span>
+                        <span v-if="userinfo.valid&&userinfo.administrator"class="badge badge-warning">管理员</span>
+                        <span v-if="userinfo.valid&&userinfo.forbidden" class="badge badge-danger">封禁中</span>
+                        <span v-if="userinfo.valid&&userinfo.role_name" class="badge badge-success">{{userinfo.role_name}}</span>
+                        <table style="width:100%" v-if="userinfo.valid">
+                            <thead>
+                                <th>微知识</th>
+                                <th>关注Ta</th>
+                                <th>Ta关注</th>
+                            </thead>
+                            <tbody><tr>
+                                <td>{{userinfo.micropub}}</td>
+                                <td>{{userinfo.followed}}</td>
+                                <td>{{userinfo.following}}</td>
+                            </tr></tbody>
+                        </table>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    <script>
+        var app=new Vue({
+            el:"#app",
+            data:{
+                //主题颜色配置
+                darkmode:false,
+                lightcolor:{
+                    front:"white",
+                    background:"#f6f6f6",
+                    content:"#2e4e7e",
+                    alert:"alert alert-primary",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bg.png')"
+                },
+                darkcolor:{
+                    //front:"#282561",
+                    front:"#3e3e3e",
+                    background:"black",
+                    content:"#28a745",
+                    alert:"alert alert-success",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bgdark.png')"
+                },
+                //微证据
+                header:"",
+                content:"",
+                topics:[],
+                hrefs:[],
+                like:0,
+                views:0,
+                remark:0,
+                liked:false,
+                collected:false,
+                time:"",
+                //
+                modify:false,
+                //评论区详情
+                comments:[],
+                //userinfo
+                userinfo:{},
+                new_comment:"",
+                input_comment:false,
+                mineavatar:window.localStorage["avatar"],
+            },
+            computed:{
+                styleobject:function(){
+                    if(this.darkmode){
+                        return this.darkcolor;
+                    }
+                    else{
+                        return this.lightcolor;
+                    }
+                },  
+            },
+            methods:{
+                switchtheme:function(){
+                    this.darkmode=!this.darkmode;
+                    document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                    document.querySelector('body').style.color=this.styleobject.content;
+                    document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                    window.localStorage["dark"]=this.darkmode;
+                },
+                getQueryVariable:function (variable){
+                    var query = window.location.search.substring(1);
+                    var vars = query.split("&");
+                    for (var i=0;i<vars.length;i++) {
+                        var pair = vars[i].split("=");
+                        if(pair[0] == variable){return pair[1];}
+                    }
+                    return(false);
+                },
+                getdata:function(id){
+                    axios({
+                        method: 'get',
+                        url:'http://114.116.53.43/api/micropubs/'+id,
+                        headers:{
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            debugger
+                            console.log(response.data)
+                            this.header=response.data.title;
+                            this.content=response.data.summary;
+                            this.like=response.data.likes;
+                            this.view=response.data.views;
+                            this.remark=response.data.comments.length;
+                            this.collected=response.data.is_collected;
+                            this.liked=response.data.is_liked;
+                            this.time=response.data.timestamp;
+                            this.topics=response.data.tags;
+                            this.hrefs=response.data.reference.split("\n");
+                            this.comments.splice(0,this.comments);
+                            for(var i=0;i<this.remark;i++){
+                                this.comments.push({
+                                    username:response.data.comments[i].author.username,
+                                    content:response.data.comments[i].body,
+                                    date:response.data.comments[i].timestamp,
+                                    id:response.data.comments[i].author.id,
+                                    comment_id:response.data.comments[i].id,
+                                    mine:response.data.comments[i].author.id==window.localStorage["id"],
+                                    liked:response.data.comments[i].likers_id.includes(parseInt(window.localStorage["id"]))
+                                })
+                            }
+                            if(response.data.author_id==window.localStorage["id"]){
+                                this.modify=true;
+                            }
+                            this.getuserinfo(response.data.author_id);
+                        }
+                    ).catch(function (error) {
+                        debugger
+                        console.log(error);
+                        console.log(error.response)
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微证据不存在或已被删除");
+                            window.history.back(-1);
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                            window.history.back(-1);
+                        }
+                    }.bind(this));
+                    
+               },
+               getuserinfo:function(user_id){
+                    if(!window.localStorage["token"]){
+                        return;
+                    }
+                    axios({
+                        method: 'get',
+                        url:'http://114.116.53.43/api/users/'+user_id,
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            //console.log(response)
+                            this.userinfo={
+                                valid:true,
+                                confirmed:response.data.confirmed,
+                                id:user_id,
+                                username:response.data.username,
+                                forbidden:response.data.role_id==1,
+                                administrator:response.data.role_id==4,
+                                micropub:response.data.micropubs_count,
+                                followed:response.data.followers_count,
+                                following:response.data.followeds_count,
+                                avatar:response.data._links.avatar,
+                            }
+                            if(response.data.role_id!=1&&response.data.role_id!=4){
+                                this.userinfo.role_name=response.data.role_name;
+                            }
+                        } 
+                    ).catch(function (error) {
+                        //debugger
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        if(error.response.status==404){
+                            alert("发生错误");
+                            window.history.back(-1);
+                        }
+                        console.log(error.response)
+                    }.bind(this))
+                
+                },
+                like_click:function(){
+                    var id=this.getQueryVariable("id");
+                    var api="";
+                    if(this.liked){
+                        api="http://114.116.53.43/api/micropubs/"+id+"/unlike"
+                    }
+                    else{
+                        api="http://114.116.53.43/api/micropubs/"+id+"/like"
+                    }
+                    axios({
+                        method: 'get',
+                        url:api,
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            console.log(response)
+                            window.location.reload();
+                            //todo remove reload?
+                            //this.liked=!this.liked;
+                        } 
+                    ).catch(function (error) {
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微证据不存在或已被删除");
+                            window.history.back(-1);
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                            window.history.back(-1);
+                        }
+                    }.bind(this))
+                },
+                collect_click:function(){
+                    var id=this.getQueryVariable("id");
+                    var api="";
+                    if(this.collected){
+                        api="http://114.116.53.43/api/micropubs/"+id+"/uncollect"
+                    }
+                    else{
+                        api="http://114.116.53.43/api/micropubs/"+id+"/collect"
+                    }
+                    axios({
+                        method: 'get',
+                        url:api,
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            console.log(response)
+                            window.location.reload();
+                            //todo remove reload?
+                            //this.liked=!this.liked;
+                        } 
+                    ).catch(function (error) {
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微证据不存在或已被删除");
+                            window.history.back(-1);
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                            window.history.back(-1);
+                        }
+                    }.bind(this))
+                },
+                goto_modify:function(){
+                    var id=this.getQueryVariable("id");
+                    window.location.href="evidence_create.html?type=1&id="+id;
+                },
+                goto_delete:function(){
+                    var id=this.getQueryVariable("id");
+                    axios({
+                        method: 'delete',
+                        url:"http://114.116.53.43/api/micropubs/"+id,
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            console.log(response)
+                            alert("删除成功");
+                            window.history.back(-1);
+                            //this.liked=!this.liked;
+                        } 
+                    ).catch(function (error) {
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微证据不存在或已被删除");
+                            window.history.back(-1);
+                        }
+                        else if(error.response.status==403){
+                            alert("您无权删除此微证据");
+                            window.history.back(-1);
+                        }
+                    }.bind(this))
+                },
+                send_comment(){
+                    if(this.new_comment==""){
+                        return;
+                    }
+                    var bundle={
+                        body:this.new_comment,
+                        'micropub_id':this.getQueryVariable("id")
+                    }
+                    axios({
+                        method: 'post',
+                        url:'http://114.116.53.43/api/comments/',
+                        headers:{
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                        data:JSON.stringify(bundle),
+                    }).then(
+                        response=>{
+                            alert("评论成功")
+                            window.location.reload();
+                        } 
+                    ).catch(function (error) {
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微猜想不存在或已被删除");
+                            window.history.back(-1);
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                            window.history.back(-1);
+                        }
+                    }.bind(this))
+                },
+                delete_comment:function(x){
+                    axios({
+                        method: 'delete',
+                        url:'http://114.116.53.43/api/comments/'+x,
+                        headers:{
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            alert("删除评论成功");
+                            console.log(response)
+                            window.location.reload();
+                        }
+                    ).catch(function (error) {
+                        console.log(error.response)
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微评不存在或已被删除");
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                        }
+                    }.bind(this));  
+                },
+                comment_button_click:function(){
+                    this.input_comment=!this.input_comment
+                    if(this.input_comment){
+                        this.$nextTick(
+                        ()=>{
+                            document.getElementById('commenttext').scrollIntoView(true)
+                            }
+                        )
+                    }
+                },
+                comment_like_click:function(id,liked,obj){
+                    debugger
+                    var api="";
+                    if(liked){
+                        api="http://114.116.53.43/api/comments/"+id+"/unlike"
+                    }
+                    else{
+                        api="http://114.116.53.43/api/comments/"+id+"/like"
+                    }
+                    axios({
+                        method: 'get',
+                        url:api,
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            console.log(response)
+                            //window.location.reload();
+                            obj.liked=!obj.liked
+                        } 
+                    ).catch(function (error) {
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该评论不存在或已被删除");
+                            //window.history.back(-1);
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                            //window.history.back(-1);
+                        }
+                    }.bind(this))
+                },
+            },
+            mounted(){
+                if(!window.localStorage["dark"]||window.localStorage["dark"]=="false"){
+                    this.darkmode=false;
+                }
+                else{
+                    this.darkmode=true;
+                }
+                document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                document.querySelector('body').style.color=this.styleobject.content;
+                document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                document.querySelector('body').style.backgroundAttachment="fixed";
+                document.querySelector('body').style.backgroundSize='cover';
+                var id=this.getQueryVariable("id");
+                if(!id){
+                    alert("非法链接");
+                    window.history.back(-1);
+                }
+                this.getdata(id);
+            }
+        })
+    </script>
+    <link rel="stylesheet" type="text/css" href="static/css/header.css">
+    <link rel="stylesheet" type="text/css" href="static/css/main.css">
+    <style>
+        .middle{
+            margin-left: 5%;
+            width:70%;
+            height:auto;
+            display: inline-block;
+        }
+        .middle-header{
+            width:100%;
+            height:100px;
+            margin-bottom: 30px;
+            padding-left: 2%;
+            font-size: 20px;
+        }
+        .middle-body{
+            width:100%;
+            height:auto;
+            font-size: 15px;
+            padding:2%;
+            margin-bottom: 15px;
+        }
+        .comment{
+            width:100%;
+            height:auto;
+            font-size: 15px;
+            padding:2%;
+            margin: 0 auto;
+            margin-bottom: 15px;
+            border-radius: 15px;
+        }
+        .right{
+            width:20%;
+            margin-left: 3%;
+            height:200px;
+            display: inline-block;
+            vertical-align: top;
+          
+        }
+        .right-bar{
+            width:100%;
+            height:auto;
+            display:block;
+            padding: 2px;
+            margin-bottom: 15px;
+        }
+        a{
+            text-decoration:underline;
+        }
+        .avatar{
+            margin:0 auto;
+            display: block;
+            height:100px;
+            width:100px;
+            opacity: 1;
+        }
+		.btn-primary {
+			background-color: #2e4e7e;
+			border-color: #2e4e7e;
+		}
+		.btn-outline-primary {
+			color: #2e4e7e;
+			border-color: #2e4e7e;
+		}
+		.badge-lightself {
+			background-color: #2e4e7e;
+			color: #ffffff
+		}
+    </style>
+</html>

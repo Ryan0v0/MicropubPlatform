@@ -181,6 +181,24 @@ microcons_cons = db.Table(
     db.Column('reason', db.String(255))
 )
 
+# 通过微证据
+micropubs_pros = db.Table(
+    'micropubs_pors',
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id', ondelete='CASCADE')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('timestamp', db.DateTime, default=datetime.now),
+    db.Column('reason', db.String(255))
+)
+
+# 否决微证据
+micropubs_cons = db.Table(
+    'micropubs_cons',
+    db.Column('micropub_id', db.Integer, db.ForeignKey('micropubs.id', ondelete='CASCADE')),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE')),
+    db.Column('timestamp', db.DateTime, default=datetime.now),
+    db.Column('reason', db.String(255))
+)
+
 # 标签如何新建？？
 @whooshee.register_model('content')
 class Tag(db.Model):
@@ -764,6 +782,16 @@ class Micropub(PaginatedAPIMixin, db.Model):
     microknos_cites = db.relationship('MicroknosCites', backref='micropub',
                                       lazy='dynamic', cascade='all, delete-orphan')
 
+
+    # 微证据评审状态，0：待评审；1：已通过；-1 已否决
+    status = db.Column(db.Integer, default=0)
+
+    # 微证据与通过或者否决它的人是多对多关系
+    pros = db.relationship('User', secondary=micropubs_pros,
+                       backref=db.backref('proed_micopubs'), lazy='dynamic')
+    cons = db.relationship('User', secondary=micropubs_cons,
+                       backref=db.backref('coned_micropubs'), lazy='dynamic')
+
     def __repr__(self):
         return '<Micropub {}>'.format(self.title)
 
@@ -791,11 +819,38 @@ class Micropub(PaginatedAPIMixin, db.Model):
             'collects': self.collecters.count(),
             'collecters_id': [user.id for user in self.collecters],
             'comments': [comment.to_dict() for comment in self.comments],
+            'pros_num': self.pros.count(),
+            'pros': [self.pros_to_dict(item) for item in self.pros],
+            'cons_num': self.cons.count(),
+            'cons': [self.cons_to_dict(item) for item in self.cons],
             '_links': {
                 'self': url_for('api.get_micropub', id=self.id),  # 有啥用
                 'author_url': url_for('api.get_user', id=self.author_id),
                 'tag_urls': [url_for('api.get_tag', id=tag.id) for tag in self.tags]
             }
+        }
+        return data
+
+
+    def pros_to_dict(self, pro):
+        item = db.engine.execute("select * from micropubs_pors where microopub_id=? and user_id=?",
+                             [self.id, pro.id])
+        item = list(item)[0]
+        data = {
+            'user_id': item[1],
+            'timestamp': item[2],
+            'reason': item[3]
+        }
+        return data
+
+    def cons_to_dict(self, con):
+        item = db.engine.execute("select * from micropubs_cons where micropub_id=? and user_id=?",
+                             [self.id, con.id])
+        item = list(item)[0]
+        data = {
+            'user_id': item[1],
+            'timestamp': item[2],
+            'reason': item[3]
         }
         return data
 
@@ -869,6 +924,34 @@ class Micropub(PaginatedAPIMixin, db.Model):
 
     def viewed(self):
         self.views += 1
+
+
+    def is_judged_by(self, user):
+        return (user in self.pros) or (user in self.cons)
+
+    def proed_by(self, user, reason):
+        if not self.is_judged_by(user):
+            self.pros.append(user)
+            db.session.commit()
+            db.engine.execute("update micropubs_pors set reason=? "
+                              "where micropub_id=? and user_id=?", [reason, self.id, user.id])
+            return True
+        return False
+
+    def coned_by(self, user, reason):
+        if not self.is_judged_by(user):
+            self.cons.append(user)
+            db.session.commit()
+            db.engine.execute("update micropubs_cons set reason=? "
+                              "where micropub_id=? and user_id=?", [reason, self.id, user.id])
+            return True
+        return False
+
+    def remove_all_judge(self):
+        for item in self.pros:
+            self.pros.remove(item)
+        for item in self.cons:
+            self.cons.remove(item)
 
 # db.event.listen(Micropub.body, 'set', Micropub.on_changed_body)  # body 字段有变化时，执行 on_changed_body() 方法
 
@@ -1072,6 +1155,12 @@ class Microcon(PaginatedAPIMixin, db.Model):
                               "where microcon_id=? and user_id=?", [reason, self.id, user.id])
             return True
         return False
+
+    def remove_all_judge(self):
+        for item in self.pros:
+            self.pros.remove(item)
+        for item in self.cons:
+            self.cons.remove(item)
 
 #
 class Comment(PaginatedAPIMixin, db.Model):

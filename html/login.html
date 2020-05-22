@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+        <script src="https://cdn.staticfile.org/jquery/3.2.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/popper.js/1.15.0/umd/popper.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/js/bootstrap.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
+        <title>登录</title>
+    </head>
+    <body>
+        <div id="app" >
+            <!--粘性标题栏-->
+            <div class="container-fluid header" v-bind:style="{'background-color':styleobject.front}">
+                <!--img src="static/img/guard.png" style="height:60px;width:60px; margin:5px;"-->
+                <div class="header-content" style="display:inline-block;">登录</div>
+                <button  v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode}"  style="float:right;height:100%;" v-on:click="switchtheme">切换主题</button>
+            </div>
+            <!--主体-->
+            <div class="container-fluid" style="margin-top:30px;">
+                <div class="main" v-bind:style="{
+                    width:'60%',
+                    height:'400px',
+                    margin:'0 auto',
+                    'border-radius':'15px',
+                    'background-color':styleobject.front
+                }">
+                    <div v-bind:class="message_class" style="margin:5px auto;width:80%;">
+                            <strong>{{message}}</strong> 
+                    </div>
+                    <form style="width:80%;margin:0 auto;font-size: 20px;">
+                        <label>用户名</label>
+                        <input type="input" class="form-control" v-bind:style="{'background-color':styleobject.front,color:styleobject.content}" v-model="input_username">
+                        <label>密码</label>
+                        <input type="password" class="form-control" v-bind:style="{'background-color':styleobject.front,color:styleobject.content}" v-model="input_password">
+                        <button type="button" v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode}" style="margin:0 auto;margin-top:10px;width:100%" v-on:click="login">登录</button><br>
+                        <button type="button" v-bind:class="{btn:true,'btn-outline-primary':!darkmode,'btn-outline-success':darkmode}"style="margin:0 auto;margin-top:10px;width:100%"
+                        v-on:click="jump_to_register">没有账户？立即注册</button><br>
+                    </form>
+    
+                </div>
+            </div>
+        </div>
+    </body>
+    <script>
+        var app=new Vue({
+            el:"#app",
+            data:{
+                //主题颜色配置
+                darkmode:false,
+                lightcolor:{
+                    front:"white",
+                    background:"#f6f6f6",
+                    content:"#2e4e7e",
+                    alert:"alert alert-primary",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bg.png')"
+                },
+                darkcolor:{
+                    //front:"#282561",
+                    front:"#3e3e3e",
+                    background:"black",
+                    content:"#28a745",
+                    alert:"alert alert-success",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bgdark.png')"
+                },
+                //提示信息配置
+                message_status:true,
+                message_normal:'你好,游客 要继续请先登录',
+                message_error:'用户名或密码错误！',
+                //用户信息
+                input_username:"",
+                input_password:"",
+                
+            },
+            computed:{
+                styleobject:function(){
+                    if(this.darkmode){
+                        return this.darkcolor;
+                    }
+                    else{
+                        return this.lightcolor;
+                    }
+                },
+                message:function(){
+                    if(this.message_status){
+                        return this.message_normal;
+                    }
+                    else{
+                        return this.message_error;
+                    }
+                },
+                message_class:function(){
+                    return this.message_status?this.styleobject.alert:this.styleobject.alerterror;
+                }
+            },
+            methods:{
+                switchtheme:function(){
+                    this.darkmode=!this.darkmode;
+                    document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                    document.querySelector('body').style.color=this.styleobject.content;
+                    document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                    window.localStorage["dark"]=this.darkmode;
+                },
+                jump_to_register:function(){
+                    window.location.href="register.html";
+                },
+                login:function(){
+                    if(this.input_password==""||this.input_username==""){
+                        return;
+                    }
+                    axios({
+                        method: 'post',
+                        url:'http://114.116.53.43/api/tokens',
+                        auth:{
+                            username:this.input_username,
+                            password:this.input_password
+                        },
+                        header:{
+                            'Cache-Control': 'no-cache',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    }).then(
+                        response=>{
+                            //debugger
+                            window.localStorage["token"]=response.data.token;
+                            window.localStorage["id"]=response.data.id;
+                            if(this.getQueryVariable("type")==1){
+                                window.history.back(-1);
+                            }
+                            else{
+                                window.location.href="index.html" 
+                            }
+                            //this.setavatar();
+                        }
+                        
+                    ).catch(function (error) {
+                        if(error.response.status!=200){
+                            this.message_status=false;
+                        }
+                        console.log(error.response);
+                    }.bind(this));
+                },
+                getQueryVariable:function (variable){
+                    var query = window.location.search.substring(1);
+                    var vars = query.split("&");
+                    for (var i=0;i<vars.length;i++) {
+                        var pair = vars[i].split("=");
+                        if(pair[0] == variable){return pair[1];}
+                    }
+                    return(false);
+                },
+                setavatar:function(){
+                    if(!window.localStorage["token"]){
+                        return;
+                    }
+                    axios({
+                        method: 'get',
+                        url:'http://114.116.53.43/api/users/'+window.localStorage["id"],
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            debugger
+                            console.log(response)
+                            window.localStorage["avatar"]=response.data._links.avatar;
+                            if(this.getQueryVariable("type")==1){
+                                window.history.back(-1);
+                            }
+                            else{
+                                window.location.href="index.html" 
+                            }
+                        }
+                    ).catch(function (error) {
+                        debugger
+                        console.log(error.response)
+                        if(this.getQueryVariable("type")==1){
+                            window.history.back(-1);
+                        }
+                        else{
+                            window.location.href="index.html" 
+                        }
+                    }.bind(this));
+                },
+
+            },
+            mounted(){
+                if(!window.localStorage["dark"]||window.localStorage["dark"]=="false"){
+                    this.darkmode=false;
+                }
+                else{
+                    this.darkmode=true;
+                }
+                document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                document.querySelector('body').style.color=this.styleobject.content;
+                document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                document.querySelector('body').style.backgroundAttachment="fixed";
+                document.querySelector('body').style.backgroundSize='cover';
+            }
+        })
+    </script>
+    <link rel="stylesheet" type="text/css" href="static/css/header.css">
+    <link rel="stylesheet" type="text/css" href="static/css/main.css">
+    <style>
+        .btn-primary {
+        	background-color: #2e4e7e;
+        	border-color: #2e4e7e;
+        }
+		.btn-outline-primary {
+			color: #2e4e7e;
+			border-color: #2e4e7e;
+		}
+    </style>
+</html>

@@ -1,0 +1,8 @@
+
+.main{
+    box-shadow:0 1px 3px rgba(26,26,26,.5);
+}
+.main::before{
+    content: "";
+    display: inline-block;
+}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+        <script src="https://cdn.staticfile.org/jquery/3.2.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/popper.js/1.15.0/umd/popper.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/js/bootstrap.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <title></title>
+    </head>
+    <body>
+        <div id='app'>
+            <!--粘性标题栏-->
+            <div class="container-fluid header" v-bind:style="{'background-color':styleobject.front}">
+                <!--img src="static/img/guard.png" style="height:60px;width:60px; margin:5px;"-->
+                <div class="header-content" style="display:inline-block;">首页</div>
+                <button  v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode}"  style="float:right;height:100%;" v-on:click="switchtheme">切换主题</button>
+                
+            </div>
+            <!--主体-->
+            <div class="container-fluid" style="margin-top:30px;">
+                <div class="main" style="width: 80%;margin: 0 auto;text-align: center;opacity: 1.0;" v-bind:style="{'background-color':styleobject.front,}">
+                    <img src="static/img/system.png" style="width: 150px;height: 150px;margin:0px auto">
+                    <h2>我们已向您的邮箱发送确认邮件，请注意检查邮箱(包括垃圾箱)</h2>
+                    <button type="button" v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode}" style="margin:0 auto;margin-top:10px;width:80%" v-on:click="resend">什么验证邮件？我没收到</button><br>
+                    <div style="height:20px"></div>
+                </div>
+                
+            </div>
+        </div>
+    </body>
+    <script>
+        var app=new Vue({
+            el:"#app",
+            data:{
+                //主题颜色配置
+                darkmode:true,
+                lightcolor:{
+                    front:"white",
+                    background:"#f6f6f6",
+                    content:"rgb(0,128,255)",
+                    alert:"alert alert-primary",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bg.png')"
+                },
+                darkcolor:{
+                    //front:"#282561",
+                    front:"#3e3e3e",
+                    background:"black",
+                    content:"#28a745",
+                    alert:"alert alert-success",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bgdark.png')"
+                },
+                mineavatar:window.localStorage["avatar"],
+            },
+            computed:{
+                styleobject:function(){
+                    if(this.darkmode){
+                        return this.darkcolor;
+                    }
+                    else{
+                        return this.lightcolor;
+                    }
+                },  
+            },
+            methods:{
+                switchtheme:function(){
+                    this.darkmode=!this.darkmode;
+                    document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                    document.querySelector('body').style.color=this.styleobject.content;
+                    document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                    window.localStorage["dark"]=this.darkmode;
+                },
+                resend:function(){
+                    axios({
+                        method: 'get',
+                        url:'',
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            alert("已重新发送")
+                            
+                        }
+                        
+                    ).catch(function (error) {
+                        //debugger
+                        console.log(error.response)
+                        
+                    }.bind(this));
+                }
+               
+            },
+            mounted(){
+                if(!window.localStorage["dark"]||window.localStorage["dark"]=="false"){
+                    this.darkmode=false;
+                }
+                else{
+                    this.darkmode=true;
+                }
+                document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                document.querySelector('body').style.color=this.styleobject.content;
+                document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                document.querySelector('body').style.backgroundAttachment="fixed";
+                document.querySelector('body').style.backgroundSize='cover';
+            }
+        })
+    </script>
+    <link rel="stylesheet" type="text/css" href="static/css/header.css">
+    <link rel="stylesheet" type="text/css" href="static/css/main.css">
+    <style>
+        
+    </style>
+</html>

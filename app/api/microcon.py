@@ -217,6 +217,8 @@ def update_microcon(id):
     # 权限检查
     if g.current_user != microcon.author:
         return error_response(403)
+    if microcon.status != 0:
+        return error_response(403)
 
     # 合法性检查
     data = request.get_json()
@@ -235,13 +237,15 @@ def update_microcon(id):
 # 既然普通用户不能删除，，那就不考虑评审状态了
 @bp.route('/microcons/<int:id>', methods=['DELETE'])
 @token_auth.login_required
-@admin_required
 def delete_microcon(id):
     '''
     :param id: 微证据 ID
     :return:   被删除的微证据和成功信息
     '''
     microcon = Microcon.query.get_or_404(id)
+    if not (g.current_user.can(Permission.ADMIN)
+            or (microcon.status == 0 and g.current_user == microcon)):
+        return error_response(403)
 
     # 403
     author = microcon.author

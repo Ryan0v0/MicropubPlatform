@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+        <script src="https://cdn.staticfile.org/jquery/3.2.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/popper.js/1.15.0/umd/popper.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/js/bootstrap.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
+        <title>评论管理</title>
+    </head>
+    <body>
+        <div id='app'>
+            <!--粘性标题栏-->
+            <div class="container-fluid header" v-bind:style="{'background-color':styleobject.front}">
+                <img v-bind:src="darkmode?'static/img/dark_back.png':'static/img/light_back.png'"
+                    style="width: 50px;height: 50px;margin-top:5px;vertical-align: top;" class="main"
+                    onclick="window.history.back(-1)">
+                <!--img src="static/img/guard.png" style="height:60px;width:60px; margin:5px;"-->
+                <div class="header-content" style="display:inline-block;">评论管理</div>
+                <button  v-bind:class="{btn:true,'btn-primary':!darkmode,'btn-success':darkmode}"  style="float:right;height:100%;" v-on:click="switchtheme">切换主题</button>
+                <div class="dropdown" style="float:right">
+                    <div class="main dropdown-toggle" data-toggle="dropdown" style="width: 75px;height:60px;margin:5px;float: right;padding: 5px;">
+                        <img v-bind:src="mineavatar?mineavatar:'static/img/avater.jpg'" 
+                        style="width:50px;height:50px;">
+                    </div>
+                    <div class="dropdown-menu" v-bind:style="{'background-color':styleobject.front }">
+                        <a class="dropdown-item" href="index.html" v-bind:style="{color:styleobject.content}">首页</a>
+                        <a class="dropdown-item" href="usercenter.html" v-bind:style="{color:styleobject.content}">个人中心</a>
+                        <!--div class="dropdown-divider"></div-->
+                    </div>
+                </div>
+            </div>
+            <!--主体-->
+            <div class="container-fluid" style="margin-top:30px;">
+                <div class="main middle" v-bind:style="{'background-color':styleobject.front,'width':'80%','margin':'0 auto'}">
+                    <table v-bind:class="{table:true,'table-dark':darkmode}" v-bind:style="{'background-color':styleobject.front}">
+                        <thead>
+                            <tr>
+                              <th>时间</th>
+                              <th>评论者</th>
+                              <th>评论内容</th>
+                              <th>评论对象</th>
+                              <th style="min-width: 90px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+							<template v-for="c in comments">
+                            <tr>
+                                <td>{{c.time}}</td>
+                                <td style="cursor: pointer;"><u v-on:click="goto_user(c.author_id)" >
+                                    {{c.author}}
+                                </u></td>
+                                <td>{{c.content}}</td>
+                                <td style="cursor: pointer;"><u v-on:click="goto_detail(c.target_type,c.target_id)" >
+                                    {{c.target}}
+                                </u></td>
+                                <td style="min-width: 90px;">
+                                    <button class="btn btn-danger" v-on:click="delete_comment(c.id)">删除</button>
+                                </td>
+                            </tr>
+							</template>
+                        </tbody>
+                    </table>
+                    <div class="main"  v-bind:style="{'background-color':styleobject.front,'width':'100%', height:'40px', 'text-align':'center', 'font-size':'15px', 'padding':'7px','cursor':'pointer'}"
+					v-on:click="getcomments()">{{hasnext?'点击加载更多':'已经没有更多了'}}</div>
+                    <div style="height:10px"></div>
+                </div>
+            </div>
+        </div>
+    </body>
+    <script>
+        var app=new Vue({
+            el:"#app",
+            data:{
+                //主题颜色配置
+                darkmode:true,
+                lightcolor:{
+                    front:"white",
+                    background:"#f6f6f6",
+                    content:"#2e4e7e",
+                    alert:"alert alert-primary",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bg.png')"
+                },
+                darkcolor:{
+                    //front:"#282561",
+                    front:"#3e3e3e",
+                    background:"black",
+                    content:"#28a745",
+                    alert:"alert alert-success",
+                    alerterror:'alert alert-danger',
+                    bgpic:"url('static/img/bgdark.png')"
+                },
+                mineavatar:window.localStorage["avatar"],
+                comments:[],
+                hasnext:true,
+                currentpage:0
+            },
+            computed:{
+                styleobject:function(){
+                    if(this.darkmode){
+                        return this.darkcolor;
+                    }
+                    else{
+                        return this.lightcolor;
+                    }
+                },  
+            },
+            methods:{
+                switchtheme:function(){
+                    this.darkmode=!this.darkmode;
+                    document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                    document.querySelector('body').style.color=this.styleobject.content;
+                    document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                    window.localStorage["dark"]=this.darkmode;
+                },
+                getcomments:function(){
+                    this.currentpage++;
+                    axios({
+                        method: 'get',
+                        url:'http://114.116.53.43/api/comments?page='+this.currentpage+'&per_page=10',
+                        headers:{
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                        
+                    }).then(
+                        response=>{
+                            debugger
+                            console.log(response)
+                            this.hasnext=response.data._links.next!=null;
+                            for(var i=0;i<response.data.items.length;i++){
+                                var tmp={}
+                                tmp.id=response.data.items[i].id
+                                tmp.time=response.data.items[i].timestamp;
+                                tmp.author=response.data.items[i].author.username;
+                                tmp.author_id=response.data.items[i].author.id;
+                                tmp.content=response.data.items[i].body;
+                                if(response.data.items[i].micropub){
+                                    tmp.target_type=0;
+                                    tmp.target="微证据:"+response.data.items[i].micropub.title;
+                                    tmp.target_id=response.data.items[i].micropub.id
+                                }
+                                else if(response.data.items[i].microcon){
+                                    tmp.target_type=1;
+                                    tmp.target="微猜想:"+response.data.items[i].microcon.title;
+                                    tmp.target_id=response.data.items[i].microcon.id
+                                }
+                                this.comments.push(tmp)
+                            }
+                            
+                        }
+                    ).catch(function (error) {
+                        //debugger
+                        console.log(error.response)
+                        if(error.response.status==400){
+                            window.location.href="login.html?type=1" 
+                        }
+                        console.log(error.response);
+                    }.bind(this));
+                },
+                goto_detail:function(type,id){
+                    if(type==0){
+                        window.open("evidence_detail.html?id="+id);
+                    }
+                    else if(type==1){
+                        window.open("hypothesis_detail.html?id="+id);
+                    }
+                },
+                goto_user:function(id){
+                    window.open("userinfo.html?id="+id);
+                },
+                delete_comment:function(x){
+                    axios({
+                        method: 'delete',
+                        url:'http://114.116.53.43/api/comments/'+x,
+                        headers:{
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'Authorization':'Bearer '+window.localStorage["token"],
+                        },
+                    }).then(
+                        response=>{
+                            alert("删除评论成功");
+                            console.log(response)
+                            window.location.reload();
+                        }
+                    ).catch(function (error) {
+                        console.log(error.response)
+                        if(error.response.status==400){
+                            if(!error.response.data.message){
+                                window.location.href="login.html?type=1";
+                                return;
+                            } 
+                        }
+                        else if(error.response==404){
+                            alert("该微评不存在或已被删除");
+                        }
+                        else if(error.response.status==403){
+                            alert("您没有相应权限");
+                        }
+                    }.bind(this));  
+                },
+               
+            },
+            mounted(){
+                if(!window.localStorage["dark"]||window.localStorage["dark"]=="false"){
+                    this.darkmode=false;
+                }
+                else{
+                    this.darkmode=true;
+                }
+                document.querySelector('body').style.backgroundColor=this.styleobject.background;
+                document.querySelector('body').style.color=this.styleobject.content;
+                document.querySelector('body').style.backgroundImage=this.styleobject.bgpic;
+                document.querySelector('body').style.backgroundAttachment="fixed";
+                document.querySelector('body').style.backgroundSize='cover';
+                this.getcomments()
+            }
+        })
+    </script>
+    <link rel="stylesheet" type="text/css" href="static/css/header.css">
+    <link rel="stylesheet" type="text/css" href="static/css/main.css">
+    <style>
+        .btn-primary {
+        	background-color: #2e4e7e;
+        	border-color: #2e4e7e;
+        }
+    </style>
+</html>
