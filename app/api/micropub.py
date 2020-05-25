@@ -91,7 +91,7 @@ def create_micropub():
 @token_auth.login_required
 def get_micropubs():
     '''
-    :return: 按热度返回分页微知识集合
+    :return: 按时间返回分页微知识集合
     '''
     page = request.args.get('page', 1, type=int)
     per_page = min(
