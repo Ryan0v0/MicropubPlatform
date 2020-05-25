@@ -1,1 +1,0 @@
-scp -r * root@114.116.53.43:~/flask-pythonapp/html

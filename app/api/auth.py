@@ -21,7 +21,7 @@ def verify_password(username, password):
 @basic_auth.error_handler
 def basic_auth_error():
     '''用于在认证失败的情况下返回错误响应'''
-    return error_response(401)
+    return error_response(400)
 
 
 @token_auth.verify_token
@@ -38,4 +38,4 @@ def verify_token(token):
 @token_auth.error_handler
 def token_auth_error():
     '''用于在 Token Auth 认证失败的情况下返回错误响应'''
-    return error_response(401)
+    return error_response(400)

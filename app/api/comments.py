@@ -80,6 +80,9 @@ def create_comment():
     else:
         if is_micropub:
             microknow = Micropub.query.get_or_404(int(data.get('micropub_id')))
+            if microknow.status == 0:
+                return bad_request('Microcpub {} is in judging status,'
+                                   ' you can not comment to it now.'.format(microknow.id))
         else:
             microknow = Microcon.query.get_or_404(int(data.get('microcon_id')))
             if microknow.status == 0:

@@ -833,7 +833,7 @@ class Micropub(PaginatedAPIMixin, db.Model):
 
 
     def pros_to_dict(self, pro):
-        item = db.engine.execute("select * from micropubs_pors where microopub_id=? and user_id=?",
+        item = db.engine.execute("select * from micropubs_pors where micropub_id=? and user_id=?",
                              [self.id, pro.id])
         item = list(item)[0]
         data = {
