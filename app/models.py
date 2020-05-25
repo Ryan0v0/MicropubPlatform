@@ -823,6 +823,7 @@ class Micropub(PaginatedAPIMixin, db.Model):
             'pros': [self.pros_to_dict(item) for item in self.pros],
             'cons_num': self.cons.count(),
             'cons': [self.cons_to_dict(item) for item in self.cons],
+            'status': self.status,
             '_links': {
                 'self': url_for('api.get_micropub', id=self.id),  # 有啥用
                 'author_url': url_for('api.get_user', id=self.author_id),

@@ -298,8 +298,24 @@ def get_user_micropubs(id):
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
+
+    status = request.args.get('status', type=str)
+    if not status:
+        return bad_request('Please provide the status of micropubs.')
+    status = status.split(',')
+    for item in status:
+        if item.strip() not in ['0', '1', '-1']:
+            return bad_request('Please provide valid status of micropubs, 0, 1 or -1.')
+
+    q_list = []
+    for item in status:
+        q_list.append(user.micropubs.filter(Micropub.status == int(item)))
+    final_query = q_list[0]
+    for i in range(1, len(q_list)):
+        final_query = final_query.union(q_list[i])
+
     data = Micropub.to_collection_dict(
-        user.micropubs.order_by(Micropub.timestamp.desc()), page, per_page,
+        final_query.order_by(Micropub.timestamp.desc()), page, per_page,
         'api.get_user_micropubs', id=id)
     for item in data['items']:
         item['is_liked'] = g.current_user.id in item['likers_id']
