@@ -70,7 +70,7 @@ def search():
 
 @bp.route('/micropubs/search/', methods=['GET'])
 @token_auth.login_required
-def get_micropubs():
+def search_micropubs():
     '''
     :return: 按时间返回分页微知识集合
     '''
@@ -99,7 +99,7 @@ def get_micropubs():
 
 @bp.route('/micropubs/hot/search/', methods=['GET'])
 # @token_auth.login_required # 未登录用户也可以浏览
-def get_hot_micropubs():
+def search_hot_micropubs():
     '''
     :return: 按热度返回微知识集合
     如果微知识是在当前时间前1小时之外发布的，tmp_views = views - 10(负数也不影响)
@@ -132,7 +132,7 @@ def get_hot_micropubs():
 '''
 @bp.route('/microcons/search/', methods=['GET'])
 @token_auth.login_required
-def get_microcons():
+def search_microcons():
     '''
     :return: 按时间降序返回分页微猜想集合
     '''
@@ -178,7 +178,7 @@ def get_microcons():
 
 @bp.route('/microcons/hot/search/', methods=['GET'])
 # @token_auth.login_required # 未登录用户也可以浏览
-def get_hot_microcons():
+def search_hot_microcons():
     '''
     :return: 按热度返回【通过的】微知识集合
     将1h前发布的微猜想热度-10加入排序
@@ -210,7 +210,7 @@ def get_hot_microcons():
 
 @bp.route('/users/<int:id>/recommend-micropubs/search/', methods=['GET'])
 @token_auth.login_required
-def get_recommend_micropubs_for_user(id):
+def search_recommend_micropubs_for_user(id):
     '''
       推荐的微证据
     '''
@@ -253,7 +253,7 @@ def get_recommend_micropubs_for_user(id):
 
 @bp.route('/users/<int:id>/recommend-microcons/search/', methods=['GET'])
 @token_auth.login_required
-def get_recommend_microcons_for_user(id):
+def search_recommend_microcons_for_user(id):
     '''
       推荐的微猜想
     '''
