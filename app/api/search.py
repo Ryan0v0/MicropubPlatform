@@ -9,24 +9,21 @@ from app.models import Micropub, Microcon, Tag, User
 def search():
     q = request.args.get('q', '').strip()
     if q == '':
-        return bad_request(message='Enter keyword about micropub, microcon, user or tag.')
+        return bad_request(message='Enter keyword about micropub, or microcon.')
     if len(q) < 3:
         return bad_request(message='Keyword must be 3 characters or more.')
 
-    category = request.args.get('category', 'micropub') # 默认搜索微证据
+    category = request.args.get('category', 'micropub')  # 默认搜索微证据
+    topic = request.args.get('tag', '').strip()  # 默认搜索微证据
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
 
-    if category == 'user':
-        pagination = User.query.whooshee_search(q).paginate(page, per_page)
-    elif category == 'tag':
-        pagination = Tag.query.whooshee_search(q).paginate(page, per_page)
-    elif category == 'micropub':
-        pagination = Micropub.query.whooshee_search(q).paginate(page, per_page)
-    else: # 'microcon'
-        pagination = Microcon.query.whooshee_search(q).paginate(page, per_page)
+    if category == 'micropub':
+        pagination = Micropub.query.whooshee_search(q).query.filter(Micropub.tag == topic).paginate(page, per_page)
+    elif category == 'microcon':
+        pagination = Microcon.query.whooshee_search(q).query.filter(Microcon.tag == topic).paginate(page, per_page)
     results = pagination.items
 
     # 总页数
@@ -42,17 +39,13 @@ def search():
     # 不能使用 Micropub.to_collection_dict()，因为查询结果已经分页过了
     to_url_results = []
     for item in results:
-        if type(item)==Micropub:
+        if type(item) == Micropub:
             to_url_results.append(url_for('api.get_micropub', id=item.id))
-        elif type(item)==Tag:
-            to_url_results.append(url_for('api.get_tag', id=item.id))
-        elif type(item)==Microcon:
+        elif type(item) == Microcon:
             to_url_results.append(url_for('api.get_microcon', id=item.id))
-        elif type(item)==User:
-            to_url_results.append(url_for('api.get_user', id=item.id))
 
     data = {
-        'items': [item.to_dict() for item in pagination.items],
+        'items': [item.to_dict() for item in results],
         '_meta': {
             'page': page,
             'per_page': per_page,
