@@ -162,7 +162,8 @@ def get_recommend_micropubs_for_user(id):
 
   # 用热点补齐 n 个
   if len(recommend_list) < n:
-    micropubs = Micropub.query.order_by(Micropub.views.desc()).all()
+    micropubs = Micropub.query.filter(Micropub.status==1).\
+      order_by(Micropub.views.desc()).all()
     for micropub in micropubs:
       if micropub not in recommend_list:
         recommend_list.append(micropub)
