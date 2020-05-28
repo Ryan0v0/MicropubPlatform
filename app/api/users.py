@@ -370,7 +370,8 @@ def get_user_followeds_micropubs(id):
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Micropub.to_collection_dict(
-        user.followeds_micropubs().order_by(Micropub.timestamp.desc()), page, per_page,
+        user.followeds_micropubs().filter(Micropub.status!=-1).\
+            order_by(Micropub.timestamp.desc()), page, per_page,
         'api.get_user_followeds_micropubs', id=id)
 
     # 标记哪些微知识是新的
@@ -627,7 +628,7 @@ def get_user_followeds_microcons(id):
         request.args.get(
             'per_page', current_app.config['POSTS_PER_PAGE'], type=int), 100)
     data = Microcon.to_collection_dict(
-        user.followeds_microcons().order_by(Microcon.timestamp.desc()), page, per_page,
+        user.followeds_microcons().fitler(Microcon.status!=-1).order_by(Microcon.timestamp.desc()), page, per_page,
         'api.get_user_followeds_microcons', id=id)
     # 标记哪些猜想是新的
     last_read_time = user.last_followeds_microcons_read_time or datetime(1900, 1, 1)
